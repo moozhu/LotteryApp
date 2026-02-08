@@ -87,6 +87,7 @@ export const useLotteryStore = create<LotteryState>((set, get) => ({
     animationMode: 'cloud',
     title: '幸运大抽奖',
     theme: 'red',
+    fontFamily: 'sans',
     soundEnabled: true,
     showDonation: true,
     ...stored.settings,

@@ -5,17 +5,19 @@ import { PRIZE_ICONS } from '@/types'
 import type { Participant, DrawStatus } from '@/types'
 import { ArrowLeft } from 'lucide-react'
 import confetti from 'canvas-confetti'
+import ParticleBackground from '@/components/ui/ParticleBackground'
+import FireworkEffect from '@/components/ui/FireworkEffect'
 
 export default function DrawPage() {
   const { prizeId } = useParams<{ prizeId: string }>()
   const navigate = useNavigate()
   const store = useLotteryStore()
+  const { settings } = store
 
   const prize = store.prizes.find(p => p.id === prizeId)
   const prizeWinners = store.winners.filter(w => w.prizeId === prizeId)
   const drawn = prizeWinners.length
   const remaining = prize ? prize.count - drawn : 0
-  const animationMode = store.settings.animationMode
 
   const [status, setStatus] = useState<DrawStatus>('idle')
   const [currentWinners, setCurrentWinners] = useState<Participant[]>([])
@@ -25,12 +27,17 @@ export default function DrawPage() {
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Slot machine state
-  const [slotOffsets, setSlotOffsets] = useState<number[]>([0, 0, 0])
-  const slotTimers = useRef<number[]>([])
+
 
   const availableParticipants = store.getAvailableParticipants()
   const drawCount = store.settings.drawMode === 'single' ? 1 : remaining
   const icon = prize ? (PRIZE_ICONS[prize.order] || '🎁') : '🎁'
+
+  // Force cloud animation mode since slot machine is removed
+  const animationMode = 'cloud'
+
+  // 检查是否参与人数不足
+  const showWarning = availableParticipants.length < remaining && status === 'idle'
 
   // 3D Cloud Animation
   useEffect(() => {
@@ -52,7 +59,7 @@ export default function DrawPage() {
     const phi = Math.acos(-1 + (2 * index + 1) / total)
     const theta = Math.sqrt(total * Math.PI) * phi + (rotation * Math.PI) / 180
 
-    const radius = Math.min(220, Math.max(120, total * 5))
+    const radius = Math.min(450, Math.max(220, total * 9))
     const x = Math.cos(theta) * Math.sin(phi) * radius
     const y = Math.cos(phi) * radius * 0.6
     const z = Math.sin(theta) * Math.sin(phi) * radius
@@ -101,32 +108,6 @@ export default function DrawPage() {
     }, 500)
   }
 
-  // Slot Machine Animation
-  const startSlotAnimation = (winners: Participant[]) => {
-    const totalSlots = Math.min(winners.length, 3)
-    const newOffsets = Array(totalSlots).fill(0)
-    setSlotOffsets(newOffsets)
-
-    slotTimers.current.forEach(t => clearInterval(t))
-    slotTimers.current = []
-
-    for (let i = 0; i < totalSlots; i++) {
-      let offset = 0
-      const timer = window.setInterval(() => {
-        offset += 1
-        setSlotOffsets(prev => {
-          const next = [...prev]
-          next[i] = offset
-          return next
-        })
-      }, 50)
-      slotTimers.current.push(timer)
-
-      setTimeout(() => {
-        clearInterval(timer)
-      }, 2000 + i * 500)
-    }
-  }
 
   const handleDraw = () => {
     if (status !== 'idle' || remaining <= 0) return
@@ -156,16 +137,6 @@ export default function DrawPage() {
         setCurrentWinners(winners)
         fireConfetti()
       }, 3500)
-    } else {
-      // Slot machine mode
-      setStatus('drawing')
-      startSlotAnimation(winners)
-
-      setTimeout(() => {
-        setStatus('finished')
-        setCurrentWinners(winners)
-        fireConfetti()
-      }, 3500)
     }
   }
 
@@ -187,6 +158,8 @@ export default function DrawPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-bg relative overflow-hidden">
+      <ParticleBackground />
+      <FireworkEffect isActive={true} />
       {/* Top Bar */}
       <header className="relative z-10 flex items-center justify-between px-4 sm:px-8 py-4">
         <button
@@ -209,40 +182,51 @@ export default function DrawPage() {
 
       {/* Main Animation Area */}
       <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-4">
-        {animationMode === 'cloud' ? (
+        {/* Current Round Winners */}
+        {currentWinners.length > 0 && status === 'finished' && (
+          <div className="mb-8 w-full max-w-4xl animate-fade-in-up">
+            <h3 className="text-sm font-bold text-foreground mb-3 text-center">本轮中奖</h3>
+            <div className="flex flex-wrap justify-center gap-4 mx-auto items-center">
+              {currentWinners.map(w => (
+                <div
+                  key={w.id}
+                  className="w-[30%] min-w-[240px] max-w-[320px] px-6 py-4 rounded-xl bg-card border border-primary/20 shadow-sm flex items-center gap-4 justify-center"
+                >
+                  <div className="text-center w-full flex items-center justify-center gap-3">
+                    <p className="font-bold text-xl text-foreground whitespace-nowrap">{w.name}</p>
+                    <div className="h-4 w-[1px] bg-border"></div>
+                    <p className="text-sm text-muted-foreground whitespace-nowrap">
+                      {w.employeeId}{w.department && ` · ${w.department}`}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {animationMode === 'cloud' && (
           /* 3D Cloud Animation */
           <div
             ref={containerRef}
-            className="cloud-container relative w-full max-w-2xl aspect-square flex items-center justify-center"
+            className="cloud-container relative w-full max-w-4xl aspect-square flex items-center justify-center"
+            style={{ minHeight: '600px' }}
           >
             <div className="cloud-sphere relative w-full h-full">
               {status === 'finished' ? (
-                /* Winner Display */
-                <div className="absolute inset-0 flex flex-col items-center justify-center animate-winner-reveal">
-                  {currentWinners.map((winner, i) => (
-                    <div
-                      key={winner.id}
-                      className="text-center mb-4"
-                      style={{ animationDelay: `${i * 200}ms` }}
-                    >
-                      <div className="text-fluid-3xl font-display font-bold text-gradient mb-1">
-                        {winner.name}
-                      </div>
-                      <div className="text-fluid-base text-muted-foreground">
-                        {winner.employeeId}
-                        {winner.department && ` · ${winner.department}`}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                 // Winner display handled above cloud now, so this can be empty or show something else if needed
+                 // But to keep the structure, we might just hide the cloud items or show a celebration effect
+                 <div className="absolute inset-0 flex items-center justify-center">
+                    {/* Optional: Central Celebration Icon or Text */}
+                 </div>
               ) : (
                 /* Rotating Names */
-                availableParticipants.slice(0, 60).map((p, i) => (
+                availableParticipants.slice(0, 80).map((p, i) => (
                   <div
                     key={p.id}
                     className="cloud-item px-3 py-1.5 rounded-lg font-body font-medium whitespace-nowrap"
                     style={{
-                      ...getCloudItemStyle(i, Math.min(availableParticipants.length, 60)),
+                      ...getCloudItemStyle(i, Math.min(availableParticipants.length, 80)),
                       color: 'var(--foreground)',
                       backgroundColor: 'var(--accent)',
                       border: '1px solid var(--border)',
@@ -254,46 +238,33 @@ export default function DrawPage() {
               )}
             </div>
           </div>
-        ) : (
-          /* Slot Machine */
-          <div className="flex gap-5 items-center">
-            {Array.from({ length: Math.min(drawCount, 3) }).map((_, slotIdx) => (
-              <div
-                key={slotIdx}
-                className="slot-window w-32 h-48 rounded-2xl border-2 border-primary bg-card overflow-hidden relative"
-              >
-                <div
-                  className="transition-transform"
-                  style={{
-                    transform: `translateY(-${(slotOffsets[slotIdx] || 0) * 48}px)`,
-                    transition: status === 'finished' ? 'transform 0.5s ease-out' : 'none',
-                  }}
-                >
-                  {availableParticipants.map((p, i) => (
-                    <div
-                      key={p.id}
-                      className="h-12 flex items-center justify-center text-sm font-bold text-foreground"
-                    >
-                      {p.name}
-                    </div>
-                  ))}
-                </div>
-                {/* Highlight Line */}
-                <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-12 border-y-2 border-primary pointer-events-none" />
-              </div>
-            ))}
-          </div>
         )}
 
         {/* Draw Button */}
         <div className="mt-8 sm:mt-12">
           {status === 'idle' && updatedRemaining > 0 && (
-            <button
-              onClick={handleDraw}
-              className="px-12 py-4 rounded-2xl text-lg font-bold bg-gradient-primary text-primary-foreground shadow-glow hover:shadow-glow-lg transition-all duration-300 hover:scale-105 active:scale-95"
-            >
-              🎲 开始抽奖
-            </button>
+            <div>
+              {showWarning && (
+                <div className="mb-4 p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-600 dark:text-yellow-400 text-sm text-center">
+                  <p>⚠️ 注意：剩余参与者数量 ({availableParticipants.length}) 少于当前奖项剩余名额 ({updatedRemaining})</p>
+                  <p className="mt-1">
+                    <button 
+                      onClick={() => navigate('/settings?tab=participants')} 
+                      className="text-primary underline font-medium hover:no-underline"
+                    >
+                      去添加参与者
+                    </button>
+                  </p>
+                </div>
+              )}
+              <button
+                onClick={handleDraw}
+                disabled={showWarning}
+                className={`px-12 py-4 rounded-2xl text-lg font-bold bg-gradient-primary text-primary-foreground shadow-glow hover:shadow-glow-lg transition-all duration-300 hover:scale-105 active:scale-95 ${showWarning ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                🎲 开始抽奖
+              </button>
+            </div>
           )}
           {(status === 'drawing' || status === 'preparing' || status === 'slowing') && (
             <div className="px-12 py-4 rounded-2xl text-lg font-bold bg-gradient-primary text-primary-foreground opacity-80 animate-pulse-glow">
@@ -312,7 +283,7 @@ export default function DrawPage() {
               )}
               <button
                 onClick={() => navigate('/')}
-                className="px-8 py-3 rounded-xl text-sm font-medium border border-border hover:bg-accent transition-colors text-foreground"
+                className={`px-8 py-3 rounded-xl text-sm font-medium border border-border transition-colors text-foreground ${settings.theme === 'red' ? 'bg-yellow-400 text-foreground hover:bg-yellow-500' : 'hover:bg-accent'}`}
               >
                 返回首页
               </button>
@@ -321,30 +292,12 @@ export default function DrawPage() {
           {updatedRemaining <= 0 && status === 'idle' && (
             <button
               onClick={() => navigate('/')}
-              className="px-8 py-3 rounded-xl text-sm font-medium border border-border hover:bg-accent transition-colors text-foreground"
+              className={`px-8 py-3 rounded-xl text-sm font-medium border border-border transition-colors text-foreground ${settings.theme === 'red' ? 'bg-yellow-400 text-foreground hover:bg-yellow-500' : 'hover:bg-accent'}`}
             >
               该奖项已抽完，返回首页
             </button>
           )}
         </div>
-
-        {/* Current Round Winners */}
-        {currentWinners.length > 0 && status === 'finished' && (
-          <div className="mt-8 w-full max-w-2xl animate-fade-in-up">
-            <h3 className="text-sm font-bold text-foreground mb-3 text-center">本轮中奖</h3>
-            <div className="flex flex-wrap justify-center gap-3">
-              {currentWinners.map(w => (
-                <div
-                  key={w.id}
-                  className="px-4 py-2 rounded-xl bg-card border border-primary/30 shadow-sm"
-                >
-                  <p className="font-bold text-sm text-foreground">{w.name}</p>
-                  <p className="text-xs text-muted-foreground">{w.employeeId}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* All Winners for this Prize */}
         {prizeWinners.length > 0 && status === 'idle' && (

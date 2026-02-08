@@ -1,12 +1,32 @@
 import { useState, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useLotteryStore } from '@/store/lottery'
-import { ArrowLeft, Plus, Trash2, Upload, Download, Hash, Search, AlertTriangle } from 'lucide-react'
-import { THEMES, PRIZE_ICONS, DEFAULT_PRIZES } from '@/types'
-import type { Participant } from '@/types'
-import { generateId, downloadFile } from '@/lib/utils'
+import { ArrowLeft, Plus, Trash2, Upload, Download, Hash, Search, Pencil, GripVertical, Image as ImageIcon, X } from 'lucide-react'
+import { THEMES, PRIZE_ICONS } from '@/types'
+import type { Participant, Prize } from '@/types'
+import { downloadFile } from '@/lib/utils'
 import { toast } from '@/components/ui/Toaster'
+import { Modal } from '@/components/ui/Modal'
+import ParticleBackground from '@/components/ui/ParticleBackground'
+import FireworkEffect from '@/components/ui/FireworkEffect'
 import Papa from 'papaparse'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 const TABS = [
   { id: 'participants', label: '参与者' },
@@ -24,9 +44,12 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabId>(initialTab)
 
   return (
-    <div className="min-h-screen bg-gradient-bg">
+    <div className="min-h-screen bg-gradient-bg relative overflow-hidden">
+      <ParticleBackground />
+      <FireworkEffect isActive={true} />
+      
       {/* Header */}
-      <header className="flex items-center justify-between px-4 sm:px-8 py-4 border-b border-border/50">
+      <header className="flex items-center justify-between px-4 sm:px-8 py-4 border-b border-border/50 relative z-10 bg-background/50 backdrop-blur-sm">
         <button
           onClick={() => navigate('/')}
           className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium hover:bg-accent transition-colors text-foreground"
@@ -39,7 +62,7 @@ export default function SettingsPage() {
       </header>
 
       {/* Tabs */}
-      <div className="px-4 sm:px-8 pt-4">
+      <div className="px-4 sm:px-8 pt-4 relative z-10">
         <div className="flex gap-1 p-1 rounded-xl bg-muted max-w-xl mx-auto">
           {TABS.map(tab => (
             <button
@@ -58,7 +81,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Tab Content */}
-      <div className="px-4 sm:px-8 py-6 max-w-4xl mx-auto">
+      <div className="px-4 sm:px-8 py-6 max-w-4xl mx-auto relative z-10">
         {activeTab === 'participants' && <ParticipantsTab />}
         {activeTab === 'prizes' && <PrizesTab />}
         {activeTab === 'basic' && <BasicSettingsTab />}
@@ -80,6 +103,9 @@ function ParticipantsTab() {
   const [rangeEnd, setRangeEnd] = useState('')
   const [prefix, setPrefix] = useState('参与者')
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Edit State
+  const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null)
 
   const filteredParticipants = store.participants.filter(p =>
     p.name.includes(search) || p.employeeId.includes(search) || (p.department || '').includes(search)
@@ -147,8 +173,23 @@ function ParticipantsTab() {
   }
 
   const downloadTemplate = () => {
-    downloadFile('工号,姓名,部门\n001,张三,技术部\n002,李四,销售部\n003,王五,人事部', '参与者模板.csv')
-    toast('模板已下载')
+    downloadFile('\uFEFF工号,姓名,部门\n001,张三,技术部\n002,李四,销售部\n003,王五,人事部', '参与者模板.csv')
+    toast('模板已下载 (可用 Excel 打开)')
+  }
+
+  const handleUpdateParticipant = () => {
+    if (!editingParticipant) return
+    if (!editingParticipant.name.trim()) {
+      toast('姓名不能为空', 'error')
+      return
+    }
+    store.updateParticipant(editingParticipant.id, {
+      name: editingParticipant.name,
+      employeeId: editingParticipant.employeeId,
+      department: editingParticipant.department
+    })
+    setEditingParticipant(null)
+    toast('更新成功')
   }
 
   return (
@@ -245,7 +286,7 @@ function ParticipantsTab() {
               className="flex items-center gap-2 text-sm text-primary hover:underline"
             >
               <Download size={14} />
-              下载 CSV 模板
+              下载 CSV 模板 (可用 Office 打开)
             </button>
           </div>
         )}
@@ -315,29 +356,166 @@ function ParticipantsTab() {
                     <span className="text-xs text-muted-foreground">{p.department}</span>
                   )}
                 </div>
-                <button
-                  onClick={() => {
-                    store.removeParticipant(p.id)
-                    toast('已删除')
-                  }}
-                  className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-destructive/10 text-destructive transition-all"
-                >
-                  <Trash2 size={14} />
-                </button>
+                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => setEditingParticipant(p)}
+                    className="p-1.5 rounded-lg hover:bg-primary/10 text-primary transition-all"
+                    title="编辑"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      store.removeParticipant(p.id)
+                      toast('已删除')
+                    }}
+                    className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive transition-all"
+                    title="删除"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* Edit Modal */}
+      <Modal
+        open={!!editingParticipant}
+        onClose={() => setEditingParticipant(null)}
+        title="编辑参与者"
+      >
+        <div className="p-6 space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">工号</label>
+            <input
+              value={editingParticipant?.employeeId || ''}
+              onChange={e => setEditingParticipant(prev => prev ? { ...prev, employeeId: e.target.value } : null)}
+              className="w-full px-4 py-2.5 rounded-xl bg-muted border border-border text-sm focus:ring-2 focus:ring-ring outline-none"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">姓名</label>
+            <input
+              value={editingParticipant?.name || ''}
+              onChange={e => setEditingParticipant(prev => prev ? { ...prev, name: e.target.value } : null)}
+              className="w-full px-4 py-2.5 rounded-xl bg-muted border border-border text-sm focus:ring-2 focus:ring-ring outline-none"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">部门</label>
+            <input
+              value={editingParticipant?.department || ''}
+              onChange={e => setEditingParticipant(prev => prev ? { ...prev, department: e.target.value } : null)}
+              className="w-full px-4 py-2.5 rounded-xl bg-muted border border-border text-sm focus:ring-2 focus:ring-ring outline-none"
+            />
+          </div>
+          <div className="pt-2 flex justify-end gap-3">
+            <button
+              onClick={() => setEditingParticipant(null)}
+              className="px-4 py-2 rounded-xl text-sm font-medium hover:bg-accent transition-colors"
+            >
+              取消
+            </button>
+            <button
+              onClick={handleUpdateParticipant}
+              className="px-4 py-2 rounded-xl text-sm font-bold bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+            >
+              保存
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }
 
 /* ==================== Prizes Tab ==================== */
+function SortablePrizeItem({ prize, onEdit, onRemove, winnersCount }: { prize: Prize, onEdit: (p: Prize) => void, onRemove: (id: string) => void, winnersCount: number }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: prize.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  const icon = prize.prizeImage ? (
+    <img src={prize.prizeImage} alt="prize" className="w-8 h-8 object-contain" />
+  ) : (
+    <span className="text-2xl">{PRIZE_ICONS[prize.order] || '🎁'}</span>
+  );
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center justify-between px-4 py-3 rounded-xl bg-card border border-border hover:shadow-sm transition-all group mb-2"
+    >
+      <div className="flex items-center gap-4">
+        <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground">
+          <GripVertical size={20} />
+        </button>
+        {icon}
+        <div>
+          <p className="text-sm font-bold text-foreground">{prize.name}</p>
+          <p className="text-xs text-muted-foreground">
+            {prize.prizeName} · {winnersCount}/{prize.count} 已抽取
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => onEdit(prize)}
+          className="p-1.5 rounded-lg hover:bg-primary/10 text-primary transition-colors"
+        >
+          <Pencil size={14} />
+        </button>
+        <button
+          onClick={() => onRemove(prize.id)}
+          className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PrizesTab() {
   const store = useLotteryStore()
-  const [editing, setEditing] = useState<string | null>(null)
-  const [newPrize, setNewPrize] = useState({ name: '', count: '1', prizeName: '' })
+  const [editingPrize, setEditingPrize] = useState<Prize | null>(null)
+  const [newPrize, setNewPrize] = useState({ name: '', count: '1', prizeName: '', prizeImage: '' })
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const editFileInputRef = useRef<HTMLInputElement>(null)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (active.id !== over?.id) {
+      const oldIndex = store.prizes.findIndex((p) => p.id === active.id);
+      const newIndex = store.prizes.findIndex((p) => p.id === over?.id);
+      const newOrder = arrayMove(store.prizes, oldIndex, newIndex);
+      // Update order property and save
+      const reordered = newOrder.map((p, index) => ({ ...p, order: index + 1 }));
+      // We need to update all prizes with new order
+      // But store.reorderPrizes takes IDs.
+      store.reorderPrizes(newOrder.map(p => p.id));
+    }
+  };
 
   const handleAdd = () => {
     if (!newPrize.name.trim() || !newPrize.prizeName.trim()) {
@@ -349,9 +527,43 @@ function PrizesTab() {
       count: Math.max(1, parseInt(newPrize.count) || 1),
       prizeName: newPrize.prizeName.trim(),
       order: store.prizes.length + 1,
+      prizeImage: newPrize.prizeImage
     })
-    setNewPrize({ name: '', count: '1', prizeName: '' })
+    setNewPrize({ name: '', count: '1', prizeName: '', prizeImage: '' })
     toast('奖项已添加')
+  }
+
+  const handleUpdatePrize = () => {
+    if (!editingPrize) return
+    store.updatePrize(editingPrize.id, {
+      name: editingPrize.name,
+      count: editingPrize.count,
+      prizeName: editingPrize.prizeName,
+      prizeImage: editingPrize.prizeImage
+    })
+    setEditingPrize(null)
+    toast('更新成功')
+  }
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast('图片大小不能超过 2MB', 'error')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const result = ev.target?.result as string
+      if (isEdit && editingPrize) {
+        setEditingPrize({ ...editingPrize, prizeImage: result })
+      } else {
+        setNewPrize(p => ({ ...p, prizeImage: result }))
+      }
+    }
+    reader.readAsDataURL(file)
   }
 
   return (
@@ -359,7 +571,7 @@ function PrizesTab() {
       {/* Add Prize */}
       <div className="p-5 rounded-2xl bg-card border border-border shadow-card">
         <h3 className="font-display font-bold text-foreground mb-4">添加奖项</h3>
-        <div className="grid grid-cols-3 gap-3 mb-3">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
           <input
             value={newPrize.name}
             onChange={e => setNewPrize(p => ({ ...p, name: e.target.value }))}
@@ -380,6 +592,27 @@ function PrizesTab() {
             placeholder="奖品名称（如：iPhone）"
             className="px-4 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring outline-none"
           />
+           <div className="flex items-center gap-2">
+             <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => handleImageUpload(e, false)}
+             />
+             <button
+               onClick={() => fileInputRef.current?.click()}
+               className="flex-1 px-4 py-2.5 rounded-xl bg-muted border border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/50 transition-all flex items-center justify-center gap-2"
+             >
+               {newPrize.prizeImage ? <ImageIcon size={16} className="text-primary" /> : <Upload size={16} />}
+               {newPrize.prizeImage ? '已选图片' : '上传图片'}
+             </button>
+             {newPrize.prizeImage && (
+               <button onClick={() => setNewPrize(p => ({...p, prizeImage: ''}))} className="p-2 hover:bg-destructive/10 text-destructive rounded-lg">
+                 <X size={16} />
+               </button>
+             )}
+           </div>
         </div>
         <button
           onClick={handleAdd}
@@ -393,7 +626,7 @@ function PrizesTab() {
       {/* Prize List */}
       <div className="p-5 rounded-2xl bg-card border border-border shadow-card">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-display font-bold text-foreground">奖项列表</h3>
+          <h3 className="font-display font-bold text-foreground">奖项列表 (拖拽排序)</h3>
           <button
             onClick={() => {
               store.resetPrizesToDefault()
@@ -405,38 +638,113 @@ function PrizesTab() {
           </button>
         </div>
 
-        {store.prizes.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground text-sm">暂无奖项</div>
-        ) : (
-          <div className="space-y-2">
-            {store.prizes.sort((a, b) => a.order - b.order).map(prize => {
-              const icon = PRIZE_ICONS[prize.order] || '🎁'
-              const winners = store.winners.filter(w => w.prizeId === prize.id)
-              return (
-                <div key={prize.id} className="flex items-center justify-between px-4 py-3 rounded-xl hover:bg-muted transition-colors group">
-                  <div className="flex items-center gap-4">
-                    <span className="text-2xl">{icon}</span>
-                    <div>
-                      <p className="text-sm font-bold text-foreground">{prize.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {prize.prizeName} · {winners.length}/{prize.count} 已抽取
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => store.removePrize(prize.id)}
-                      className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
+        <DndContext 
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext 
+            items={store.prizes.map(p => p.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {store.prizes.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground text-sm">暂无奖项</div>
+            ) : (
+              <div className="space-y-2">
+                {store.prizes.map(prize => (
+                  <SortablePrizeItem 
+                    key={prize.id} 
+                    prize={prize} 
+                    onEdit={setEditingPrize}
+                    onRemove={store.removePrize}
+                    winnersCount={store.winners.filter(w => w.prizeId === prize.id).length}
+                  />
+                ))}
+              </div>
+            )}
+          </SortableContext>
+        </DndContext>
       </div>
+
+      {/* Edit Prize Modal */}
+      <Modal
+        open={!!editingPrize}
+        onClose={() => setEditingPrize(null)}
+        title="编辑奖项"
+      >
+        <div className="p-6 space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">奖项名称</label>
+            <input
+              value={editingPrize?.name || ''}
+              onChange={e => setEditingPrize(prev => prev ? { ...prev, name: e.target.value } : null)}
+              className="w-full px-4 py-2.5 rounded-xl bg-muted border border-border text-sm focus:ring-2 focus:ring-ring outline-none"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">名额</label>
+            <input
+              type="number"
+              min="1"
+              value={editingPrize?.count || ''}
+              onChange={e => setEditingPrize(prev => prev ? { ...prev, count: parseInt(e.target.value) || 1 } : null)}
+              className="w-full px-4 py-2.5 rounded-xl bg-muted border border-border text-sm focus:ring-2 focus:ring-ring outline-none"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">奖品名称</label>
+            <input
+              value={editingPrize?.prizeName || ''}
+              onChange={e => setEditingPrize(prev => prev ? { ...prev, prizeName: e.target.value } : null)}
+              className="w-full px-4 py-2.5 rounded-xl bg-muted border border-border text-sm focus:ring-2 focus:ring-ring outline-none"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">奖品图片</label>
+            <div className="flex items-center gap-4">
+              {editingPrize?.prizeImage && (
+                <img src={editingPrize.prizeImage} alt="preview" className="w-16 h-16 object-contain rounded-lg border border-border" />
+              )}
+              <input
+                ref={editFileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => handleImageUpload(e, true)}
+              />
+              <button
+                onClick={() => editFileInputRef.current?.click()}
+                className="px-4 py-2 rounded-xl bg-muted hover:bg-accent text-sm transition-colors flex items-center gap-2"
+              >
+                <Upload size={14} />
+                {editingPrize?.prizeImage ? '更换图片' : '上传图片'}
+              </button>
+              {editingPrize?.prizeImage && (
+                 <button 
+                   onClick={() => setEditingPrize(prev => prev ? {...prev, prizeImage: undefined} : null)} 
+                   className="text-destructive hover:underline text-sm"
+                 >
+                   清除
+                 </button>
+               )}
+            </div>
+          </div>
+          <div className="pt-2 flex justify-end gap-3">
+            <button
+              onClick={() => setEditingPrize(null)}
+              className="px-4 py-2 rounded-xl text-sm font-medium hover:bg-accent transition-colors"
+            >
+              取消
+            </button>
+            <button
+              onClick={handleUpdatePrize}
+              className="px-4 py-2 rounded-xl text-sm font-bold bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+            >
+              保存
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }
@@ -461,6 +769,35 @@ function BasicSettingsTab() {
             />
           </div>
 
+          {/* Font Family */}
+          <div>
+             <label className="text-sm text-muted-foreground mb-2 block">全局字体</label>
+             <div className="flex gap-4">
+               <button
+                 onClick={() => updateSettings({ fontFamily: 'sans' })}
+                 className={`flex-1 p-3 rounded-xl border-2 text-center transition-all ${
+                   settings.fontFamily === 'sans'
+                     ? 'border-primary bg-primary/5 shadow-sm'
+                     : 'border-border hover:border-primary/30'
+                 }`}
+               >
+                 <span className="font-sans text-lg block mb-1">Sans Serif</span>
+                 <span className="text-xs text-muted-foreground">非衬线字体 (现代)</span>
+               </button>
+               <button
+                 onClick={() => updateSettings({ fontFamily: 'serif' })}
+                 className={`flex-1 p-3 rounded-xl border-2 text-center transition-all ${
+                   settings.fontFamily === 'serif'
+                     ? 'border-primary bg-primary/5 shadow-sm'
+                     : 'border-border hover:border-primary/30'
+                 }`}
+               >
+                 <span className="font-serif text-lg block mb-1">Serif</span>
+                 <span className="text-xs text-muted-foreground">衬线字体 (经典)</span>
+               </button>
+             </div>
+          </div>
+
           {/* Theme */}
           <div>
             <label className="text-sm text-muted-foreground mb-2 block">主题配色</label>
@@ -479,94 +816,28 @@ function BasicSettingsTab() {
                     className="w-8 h-8 rounded-full mx-auto mb-2"
                     style={{ background: theme.primaryColor }}
                   />
-                  <p className="text-sm font-bold text-foreground">{theme.name}</p>
-                  <p className="text-xs text-muted-foreground">{theme.description}</p>
+                  <span className="text-xs font-medium text-foreground">{theme.name}</span>
                 </button>
               ))}
             </div>
           </div>
         </div>
       </div>
-
-      {/* Draw Rules */}
+      
+      {/* Sound & Donation */}
       <div className="p-5 rounded-2xl bg-card border border-border shadow-card">
-        <h3 className="font-display font-bold text-foreground mb-4">抽奖规则</h3>
-        <div className="space-y-4">
-          <SettingToggle
-            label="允许重复中奖"
-            description="同一人可以获得多个奖项"
-            value={settings.allowRepeat}
-            onChange={v => updateSettings({ allowRepeat: v })}
-          />
-          <SettingSelect
-            label="抽取方式"
-            value={settings.drawMode}
-            options={[
-              { value: 'batch', label: '一次性抽取' },
-              { value: 'single', label: '逐个抽取' },
-            ]}
-            onChange={v => updateSettings({ drawMode: v as 'batch' | 'single' })}
-          />
-          <SettingSelect
-            label="动画模式"
-            value={settings.animationMode}
-            options={[
-              { value: 'cloud', label: '3D 云团' },
-              { value: 'slot', label: '老虎机' },
-            ]}
-            onChange={v => updateSettings({ animationMode: v as 'cloud' | 'slot' })}
-          />
-          <SettingToggle
-            label="音效开关"
-            description="开启/关闭抽奖音效"
-            value={settings.soundEnabled}
-            onChange={v => updateSettings({ soundEnabled: v })}
-          />
+        <h3 className="font-display font-bold text-foreground mb-4">功能设置</h3>
+        <div className="space-y-3">
+          <label className="flex items-center justify-between p-3 rounded-xl bg-muted/50 cursor-pointer hover:bg-muted transition-colors">
+            <span className="text-sm font-medium text-foreground">开启音效</span>
+            <input
+              type="checkbox"
+              checked={settings.soundEnabled}
+              onChange={e => updateSettings({ soundEnabled: e.target.checked })}
+              className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+            />
+          </label>
         </div>
-      </div>
-    </div>
-  )
-}
-
-function SettingToggle({ label, description, value, onChange }: {
-  label: string; description?: string; value: boolean; onChange: (v: boolean) => void
-}) {
-  return (
-    <div className="flex items-center justify-between py-2">
-      <div>
-        <p className="text-sm font-medium text-foreground">{label}</p>
-        {description && <p className="text-xs text-muted-foreground">{description}</p>}
-      </div>
-      <button
-        onClick={() => onChange(!value)}
-        className={`relative w-12 h-7 rounded-full transition-colors ${value ? 'bg-primary' : 'bg-muted'}`}
-      >
-        <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform ${value ? 'left-6' : 'left-1'}`} />
-      </button>
-    </div>
-  )
-}
-
-function SettingSelect({ label, value, options, onChange }: {
-  label: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void
-}) {
-  return (
-    <div className="flex items-center justify-between py-2">
-      <p className="text-sm font-medium text-foreground">{label}</p>
-      <div className="flex gap-1 p-0.5 rounded-lg bg-muted">
-        {options.map(opt => (
-          <button
-            key={opt.value}
-            onClick={() => onChange(opt.value)}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-              value === opt.value
-                ? 'bg-card text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {opt.label}
-          </button>
-        ))}
       </div>
     </div>
   )
@@ -575,102 +846,82 @@ function SettingSelect({ label, value, options, onChange }: {
 /* ==================== Data Management Tab ==================== */
 function DataManagementTab() {
   const store = useLotteryStore()
-  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleExport = () => {
+    const json = store.exportData()
+    downloadFile(json, `lottery-data-${new Date().toISOString().slice(0, 10)}.json`)
+    toast('数据已导出')
+  }
 
   const handleExportWinners = () => {
     if (store.winners.length === 0) {
-      toast('暂无中奖记录', 'info')
+      toast('暂无中奖数据', 'error')
       return
     }
-    const header = '奖项,工号,姓名,部门,中奖时间\n'
-    const rows = store.winners.map(w => {
-      const prize = store.prizes.find(p => p.id === w.prizeId)
-      return `${prize?.name || ''},${w.participant.employeeId},${w.participant.name},${w.participant.department || ''},${new Date(w.wonAt).toLocaleString('zh-CN')}`
-    }).join('\n')
-    downloadFile(header + rows, `中奖名单_${new Date().toLocaleDateString('zh-CN')}.csv`)
-    toast('导出成功')
-  }
-
-  const handleExportAll = () => {
-    const json = store.exportData()
-    downloadFile(json, `抽奖数据备份_${new Date().toLocaleDateString('zh-CN')}.json`, 'application/json')
-    toast('备份数据已导出')
-  }
-
-  const handleImportAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const result = store.importData(ev.target?.result as string)
-      if (result) {
-        toast('数据导入成功')
-      } else {
-        toast('数据导入失败，请检查文件格式', 'error')
-      }
-    }
-    reader.readAsText(file)
-    e.target.value = ''
+    const csv = Papa.unparse(store.winners.map(w => ({
+      '奖项': store.prizes.find(p => p.id === w.prizeId)?.name || '未知',
+      '奖品': store.prizes.find(p => p.id === w.prizeId)?.prizeName || '未知',
+      '工号': w.participant.employeeId,
+      '姓名': w.participant.name,
+      '部门': w.participant.department || '',
+      '中奖时间': new Date(w.wonAt).toLocaleString(),
+    })))
+    // Add BOM for Excel compatibility
+    downloadFile('\uFEFF' + csv, `中奖名单-${new Date().toISOString().slice(0, 10)}.csv`)
+    toast('中奖名单已导出 (可用 Office 打开)')
   }
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Export */}
-      <div className="p-5 rounded-2xl bg-card border border-border shadow-card">
-        <h3 className="font-display font-bold text-foreground mb-4">导出数据</h3>
-        <div className="grid grid-cols-2 gap-3">
+       <div className="p-5 rounded-2xl bg-card border border-border shadow-card">
+        <h3 className="font-display font-bold text-foreground mb-4">数据导出</h3>
+        <div className="grid grid-cols-2 gap-4">
           <button
-            onClick={handleExportWinners}
-            className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium border border-border hover:bg-accent transition-colors text-foreground"
+            onClick={handleExport}
+            className="p-4 rounded-xl bg-muted hover:bg-accent transition-colors text-left group"
           >
-            <Download size={16} />
-            导出中奖名单 (CSV)
+            <Download className="mb-2 text-primary" size={24} />
+            <p className="font-bold text-foreground">备份所有数据</p>
+            <p className="text-xs text-muted-foreground mt-1">导出包含设置、参与者和中奖记录的 JSON 文件</p>
           </button>
           <button
-            onClick={handleExportAll}
-            className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium border border-border hover:bg-accent transition-colors text-foreground"
+            onClick={handleExportWinners}
+            className="p-4 rounded-xl bg-muted hover:bg-accent transition-colors text-left group"
           >
-            <Download size={16} />
-            导出全部数据 (JSON)
+            <Download className="mb-2 text-primary" size={24} />
+            <p className="font-bold text-foreground">导出中奖名单</p>
+            <p className="text-xs text-muted-foreground mt-1">导出 CSV 表格文件，可用 Office Excel 打开</p>
           </button>
         </div>
       </div>
 
-      {/* Import */}
       <div className="p-5 rounded-2xl bg-card border border-border shadow-card">
-        <h3 className="font-display font-bold text-foreground mb-4">导入数据</h3>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".json"
-          onChange={handleImportAll}
-          className="hidden"
-        />
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium border border-border hover:bg-accent transition-colors text-foreground"
-        >
-          <Upload size={16} />
-          导入备份数据 (JSON)
-        </button>
-      </div>
-
-      {/* Stats */}
-      <div className="p-5 rounded-2xl bg-card border border-border shadow-card">
-        <h3 className="font-display font-bold text-foreground mb-4">数据统计</h3>
-        <div className="grid grid-cols-3 gap-4 text-center">
-          <div className="p-4 rounded-xl bg-muted">
-            <p className="text-2xl font-bold font-display text-foreground">{store.participants.length}</p>
-            <p className="text-xs text-muted-foreground mt-1">参与者</p>
-          </div>
-          <div className="p-4 rounded-xl bg-muted">
-            <p className="text-2xl font-bold font-display text-foreground">{store.prizes.length}</p>
-            <p className="text-xs text-muted-foreground mt-1">奖项</p>
-          </div>
-          <div className="p-4 rounded-xl bg-muted">
-            <p className="text-2xl font-bold font-display text-foreground">{store.winners.length}</p>
-            <p className="text-xs text-muted-foreground mt-1">已中奖</p>
-          </div>
+        <h3 className="font-display font-bold text-foreground mb-4 text-destructive">危险区域</h3>
+        <div className="space-y-3">
+          <button
+            onClick={() => {
+              if (confirm('确定要清空所有中奖记录吗？此操作不可恢复。')) {
+                store.resetWinners()
+                toast('中奖记录已清空')
+              }
+            }}
+            className="w-full p-3 rounded-xl border border-destructive/30 text-destructive hover:bg-destructive/10 transition-colors text-left flex items-center justify-between"
+          >
+            <span className="text-sm font-medium">清空中奖记录</span>
+            <Trash2 size={16} />
+          </button>
+          <button
+            onClick={() => {
+              if (confirm('确定要重置所有数据吗？包括设置、参与者和中奖记录。此操作不可恢复。')) {
+                store.resetAll({ winners: true, participants: true, prizes: true })
+                toast('所有数据已重置')
+              }
+            }}
+            className="w-full p-3 rounded-xl bg-destructive text-destructive-foreground hover:opacity-90 transition-colors text-left flex items-center justify-between"
+          >
+            <span className="text-sm font-medium">重置应用 (恢复出厂设置)</span>
+            <AlertTriangle size={16} />
+          </button>
         </div>
       </div>
     </div>

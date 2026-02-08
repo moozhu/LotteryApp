@@ -32,9 +32,10 @@ export interface Winner {
 export interface AppSettings {
   allowRepeat: boolean
   drawMode: 'batch' | 'single'
-  animationMode: 'cloud' | 'slot'
+  animationMode: 'cloud' // Removed 'slot'
   title: string
   theme: 'luxury' | 'red' | 'vibrant'
+  fontFamily: 'serif' | 'sans'
   soundEnabled: boolean
   showDonation: boolean
 }
@@ -58,10 +59,10 @@ export const THEMES: ThemeConfig[] = [
 
 // ==================== Default Prizes ====================
 export const DEFAULT_PRIZES: Omit<Prize, 'id' | 'createdAt'>[] = [
-  { name: '一等奖', count: 1, prizeName: 'iPhone 15 Pro', order: 1 },
-  { name: '二等奖', count: 2, prizeName: 'iPad Air', order: 2 },
-  { name: '三等奖', count: 3, prizeName: 'AirPods Pro', order: 3 },
-  { name: '幸运奖', count: 10, prizeName: '小米手环', order: 4 },
+  { name: '一等奖', count: 1, prizeName: 'HUAWEI Mate 80 Pro Max', order: 1, prizeImage: '/images/prizes/huawei-mate80.svg' },
+  { name: '二等奖', count: 2, prizeName: 'iPhone 17', order: 2, prizeImage: '/images/prizes/iphone17.svg' },
+  { name: '三等奖', count: 3, prizeName: 'HUAWEI MatePad Air', order: 3, prizeImage: '/images/prizes/huawei-matepad.svg' },
+  { name: '幸运奖', count: 10, prizeName: '小米手环 9', order: 4, prizeImage: '/images/prizes/xiaomi-band9.svg' },
 ]
 
 // ==================== Prize Icons ====================

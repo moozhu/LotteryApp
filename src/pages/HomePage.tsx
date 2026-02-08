@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLotteryStore } from '@/store/lottery'
+import FireworkEffect from '@/components/ui/FireworkEffect'
+import ParticleBackground from '@/components/ui/ParticleBackground'
 import { Users, Trophy, Settings, Maximize, RotateCcw, Sparkles } from 'lucide-react'
 import { PRIZE_ICONS } from '@/types'
 import { WinnerListModal } from '@/components/modals/WinnerListModal'
@@ -54,6 +56,8 @@ export default function HomePage() {
     <div className="min-h-screen flex flex-col relative overflow-hidden">
       {/* Layered decorative background */}
       <div className="absolute inset-0 bg-gradient-bg" />
+      <ParticleBackground />
+      <FireworkEffect isActive={true} />
       <div
         className="absolute inset-0 opacity-[0.06] pointer-events-none"
         style={{ backgroundImage: 'url(/images/hero-bg.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}
@@ -62,26 +66,6 @@ export default function HomePage() {
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full opacity-20 pointer-events-none"
         style={{ background: 'radial-gradient(ellipse, var(--primary) 0%, transparent 70%)' }}
       />
-
-      {/* Floating decorative particles */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        {Array.from({ length: 12 }).map((_, i) => (
-          <div
-            key={i}
-            className="particle animate-float"
-            style={{
-              width: `${4 + Math.random() * 6}px`,
-              height: `${4 + Math.random() * 6}px`,
-              left: `${5 + Math.random() * 90}%`,
-              top: `${10 + Math.random() * 80}%`,
-              background: `var(--primary)`,
-              opacity: 0.15 + Math.random() * 0.15,
-              animationDelay: `${Math.random() * 5}s`,
-              animationDuration: `${3 + Math.random() * 4}s`,
-            }}
-          />
-        ))}
-      </div>
 
       {/* Quick Actions Bar */}
       <header className="relative z-10 flex items-center justify-between px-4 sm:px-8 py-3">

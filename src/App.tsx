@@ -7,11 +7,14 @@ import SettingsPage from '@/pages/SettingsPage'
 import { Toaster } from '@/components/ui/Toaster'
 
 export default function App() {
-  const theme = useLotteryStore(s => s.settings.theme)
+  const { theme, fontFamily } = useLotteryStore(s => s.settings)
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
-  }, [theme])
+    document.documentElement.style.fontFamily = fontFamily === 'serif' 
+      ? '"Noto Serif SC", "Songti SC", serif' 
+      : '"Inter", "Noto Sans SC", system-ui, sans-serif'
+  }, [theme, fontFamily])
 
   return (
     <div className="min-h-screen bg-gradient-bg">
