@@ -1,0 +1,379 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* ==================== Chinese Red Theme (Default) ==================== */
+  :root,
+  [data-theme="red"] {
+    --primary: #E53935;
+    --primary-light: #FF6F61;
+    --primary-dark: #C62828;
+    --primary-foreground: #FFFFFF;
+
+    --secondary: #FFD54F;
+    --secondary-light: #FFE082;
+    --secondary-foreground: #3E2723;
+
+    --background: #FFF8E7;
+    --foreground: #3E2723;
+
+    --card: #FFFFFF;
+    --card-foreground: #3E2723;
+
+    --popover: #FFFFFF;
+    --popover-foreground: #3E2723;
+
+    --accent: #FFECB3;
+    --accent-foreground: #3E2723;
+
+    --muted: #FFF3E0;
+    --muted-foreground: #8D6E63;
+
+    --border: #FFE0B2;
+    --input: #FFE0B2;
+    --ring: #E53935;
+
+    --destructive: #D32F2F;
+    --destructive-foreground: #FFFFFF;
+
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
+
+    --shadow-glow: rgba(229, 57, 53, 0.35);
+    --shadow-card: 0 4px 20px rgba(229, 57, 53, 0.08), 0 1px 3px rgba(0,0,0,0.06);
+    --shadow-card-hover: 0 12px 32px rgba(229, 57, 53, 0.18), 0 4px 12px rgba(0,0,0,0.08);
+
+    --gradient-primary: linear-gradient(135deg, #E53935, #FF6F61);
+    --gradient-bg: linear-gradient(180deg, #FFF8E7 0%, #FFECB3 100%);
+    --gradient-card: linear-gradient(135deg, #E53935 0%, #FF6F61 100%);
+    --gradient-gold: linear-gradient(135deg, #FFD54F 0%, #FFC107 100%);
+    --gradient-hero: linear-gradient(180deg, rgba(229,57,53,0.05) 0%, rgba(255,236,179,0.3) 100%);
+  }
+
+  /* ==================== Luxury Gold Theme ==================== */
+  [data-theme="luxury"] {
+    --primary: #C9A227;
+    --primary-light: #E6C875;
+    --primary-dark: #9A7B1A;
+    --primary-foreground: #1A1A2E;
+
+    --secondary: #E6C875;
+    --secondary-light: #F0DDA0;
+    --secondary-foreground: #1A1A2E;
+
+    --background: #1A1A2E;
+    --foreground: #FFFFFF;
+
+    --card: #252542;
+    --card-foreground: #FFFFFF;
+
+    --popover: #252542;
+    --popover-foreground: #FFFFFF;
+
+    --accent: #16213E;
+    --accent-foreground: #E6C875;
+
+    --muted: #2A2A4A;
+    --muted-foreground: #8888AA;
+
+    --border: #3A3A5C;
+    --input: #3A3A5C;
+    --ring: #C9A227;
+
+    --destructive: #CF6679;
+    --destructive-foreground: #FFFFFF;
+
+    --shadow-glow: rgba(201, 162, 39, 0.35);
+    --shadow-card: 0 4px 20px rgba(0,0,0,0.3), 0 1px 3px rgba(201,162,39,0.1);
+    --shadow-card-hover: 0 12px 32px rgba(201,162,39,0.25), 0 4px 12px rgba(0,0,0,0.3);
+
+    --gradient-primary: linear-gradient(135deg, #C9A227, #E6C875);
+    --gradient-bg: linear-gradient(180deg, #1A1A2E 0%, #16213E 100%);
+    --gradient-card: linear-gradient(135deg, #C9A227 0%, #E6C875 100%);
+    --gradient-gold: linear-gradient(135deg, #C9A227 0%, #E6C875 100%);
+    --gradient-hero: linear-gradient(180deg, rgba(201,162,39,0.08) 0%, rgba(22,33,62,0.3) 100%);
+  }
+
+  /* ==================== Vibrant Orange Theme ==================== */
+  [data-theme="vibrant"] {
+    --primary: #FF6B35;
+    --primary-light: #FF8C61;
+    --primary-dark: #E55A2B;
+    --primary-foreground: #FFFFFF;
+
+    --secondary: #4ECDC4;
+    --secondary-light: #7EDDD7;
+    --secondary-foreground: #FFFFFF;
+
+    --background: #FAFAFA;
+    --foreground: #212121;
+
+    --card: #FFFFFF;
+    --card-foreground: #212121;
+
+    --popover: #FFFFFF;
+    --popover-foreground: #212121;
+
+    --accent: #FFF3E0;
+    --accent-foreground: #212121;
+
+    --muted: #F5F5F5;
+    --muted-foreground: #757575;
+
+    --border: #E0E0E0;
+    --input: #E0E0E0;
+    --ring: #FF6B35;
+
+    --destructive: #F44336;
+    --destructive-foreground: #FFFFFF;
+
+    --shadow-glow: rgba(255, 107, 53, 0.35);
+    --shadow-card: 0 4px 20px rgba(255,107,53,0.08), 0 1px 3px rgba(0,0,0,0.06);
+    --shadow-card-hover: 0 12px 32px rgba(255,107,53,0.18), 0 4px 12px rgba(0,0,0,0.08);
+
+    --gradient-primary: linear-gradient(135deg, #FF6B35, #FF8C61);
+    --gradient-bg: linear-gradient(180deg, #FAFAFA 0%, #FFF3E0 100%);
+    --gradient-card: linear-gradient(135deg, #FF6B35 0%, #FF8C61 100%);
+    --gradient-gold: linear-gradient(135deg, #FFD54F 0%, #FFC107 100%);
+    --gradient-hero: linear-gradient(180deg, rgba(255,107,53,0.05) 0%, rgba(255,243,224,0.3) 100%);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Noto Serif SC', serif;
+  }
+}
+
+@layer components {
+  /* Gradient text effect */
+  .text-gradient {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Card with gradient border */
+  .card-gradient {
+    position: relative;
+    background: var(--card);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  .card-gradient::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 2px;
+    background: var(--gradient-primary);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* Prize card specific */
+  .prize-card {
+    background: var(--card);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    border: 1px solid var(--border);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .prize-card:hover {
+    transform: translateY(-8px);
+    box-shadow: var(--shadow-card-hover);
+    border-color: var(--primary);
+  }
+
+  .prize-card:active {
+    transform: translateY(-4px) scale(0.98);
+  }
+
+  .prize-card.completed {
+    opacity: 0.5;
+    filter: grayscale(50%);
+    cursor: not-allowed;
+  }
+
+  .prize-card.completed:hover {
+    transform: none;
+    box-shadow: var(--shadow-card);
+  }
+
+  /* Shimmer effect */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255,255,255,0.3) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 3s ease-in-out infinite;
+  }
+
+  /* Glass morphism */
+  .glass {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  /* 3D cloud container */
+  .cloud-container {
+    perspective: 1200px;
+    transform-style: preserve-3d;
+  }
+
+  .cloud-sphere {
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+
+  .cloud-item {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform-style: preserve-3d;
+    backface-visibility: hidden;
+    will-change: transform, opacity;
+    transition: opacity 0.5s ease;
+  }
+
+  /* Slot machine */
+  .slot-window {
+    overflow: hidden;
+    position: relative;
+  }
+
+  .slot-window::before,
+  .slot-window::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 40%;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  .slot-window::before {
+    top: 0;
+    background: linear-gradient(to bottom, var(--card) 0%, transparent 100%);
+  }
+
+  .slot-window::after {
+    bottom: 0;
+    background: linear-gradient(to top, var(--card) 0%, transparent 100%);
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+    animation: fade-in-up 0.3s ease-out;
+  }
+
+  /* Floating particles */
+  .particle {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    will-change: transform, opacity;
+  }
+
+  /* Progress bar */
+  .progress-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--muted);
+    overflow: hidden;
+  }
+
+  .progress-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--gradient-primary);
+    transition: width 0.5s ease;
+  }
+
+  /* Responsive fluid typography */
+  .text-fluid-sm {
+    font-size: clamp(0.75rem, 0.6vw + 0.5rem, 0.875rem);
+  }
+
+  .text-fluid-base {
+    font-size: clamp(0.875rem, 0.8vw + 0.5rem, 1rem);
+  }
+
+  .text-fluid-lg {
+    font-size: clamp(1rem, 1vw + 0.5rem, 1.25rem);
+  }
+
+  .text-fluid-xl {
+    font-size: clamp(1.25rem, 1.5vw + 0.5rem, 1.75rem);
+  }
+
+  .text-fluid-2xl {
+    font-size: clamp(1.5rem, 2vw + 0.5rem, 2.25rem);
+  }
+
+  .text-fluid-3xl {
+    font-size: clamp(2rem, 3vw + 0.5rem, 3rem);
+  }
+
+  .text-fluid-4xl {
+    font-size: clamp(2.5rem, 4vw + 0.5rem, 4.5rem);
+  }
+}
+
+@layer utilities {
+  .bg-gradient-primary {
+    background: var(--gradient-primary);
+  }
+
+  .bg-gradient-bg {
+    background: var(--gradient-bg);
+  }
+
+  .bg-gradient-card {
+    background: var(--gradient-card);
+  }
+
+  .bg-gradient-gold {
+    background: var(--gradient-gold);
+  }
+
+  .bg-gradient-hero {
+    background: var(--gradient-hero);
+  }
+}
