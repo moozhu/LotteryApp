@@ -825,6 +825,55 @@ function BasicSettingsTab() {
         </div>
       </div>
       
+      {/* Draw Rules */}
+      <div className="p-5 rounded-2xl bg-card border border-border shadow-card">
+        <h3 className="font-display font-bold text-foreground mb-4">抽奖规则</h3>
+        <div className="space-y-4">
+          {/* Allow Repeat */}
+          <label className="flex items-center justify-between p-3 rounded-xl bg-muted/50 cursor-pointer hover:bg-muted transition-colors">
+            <div>
+              <span className="text-sm font-medium text-foreground block">允许重复中奖</span>
+              <span className="text-xs text-muted-foreground">开启后，同一人可被多次抽中</span>
+            </div>
+            <input
+              type="checkbox"
+              checked={settings.allowRepeat}
+              onChange={e => updateSettings({ allowRepeat: e.target.checked })}
+              className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+            />
+          </label>
+
+          {/* Draw Mode */}
+          <div>
+            <label className="text-sm text-muted-foreground mb-2 block">抽取方式</label>
+            <div className="flex gap-3">
+              <button
+                onClick={() => updateSettings({ drawMode: 'batch' })}
+                className={`flex-1 p-3 rounded-xl border-2 text-center transition-all ${
+                  settings.drawMode === 'batch'
+                    ? 'border-primary bg-primary/5 shadow-sm'
+                    : 'border-border hover:border-primary/30'
+                }`}
+              >
+                <span className="text-sm font-medium text-foreground block">批量抽取</span>
+                <span className="text-xs text-muted-foreground">一次性抽取所有名额</span>
+              </button>
+              <button
+                onClick={() => updateSettings({ drawMode: 'single' })}
+                className={`flex-1 p-3 rounded-xl border-2 text-center transition-all ${
+                  settings.drawMode === 'single'
+                    ? 'border-primary bg-primary/5 shadow-sm'
+                    : 'border-border hover:border-primary/30'
+                }`}
+              >
+                <span className="text-sm font-medium text-foreground block">逐个抽取</span>
+                <span className="text-xs text-muted-foreground">每次只抽一人</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Sound & Donation */}
       <div className="p-5 rounded-2xl bg-card border border-border shadow-card">
         <h3 className="font-display font-bold text-foreground mb-4">功能设置</h3>
@@ -835,6 +884,15 @@ function BasicSettingsTab() {
               type="checkbox"
               checked={settings.soundEnabled}
               onChange={e => updateSettings({ soundEnabled: e.target.checked })}
+              className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+            />
+          </label>
+          <label className="flex items-center justify-between p-3 rounded-xl bg-muted/50 cursor-pointer hover:bg-muted transition-colors">
+            <span className="text-sm font-medium text-foreground">显示打赏入口</span>
+            <input
+              type="checkbox"
+              checked={settings.showDonation}
+              onChange={e => updateSettings({ showDonation: e.target.checked })}
               className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
             />
           </label>

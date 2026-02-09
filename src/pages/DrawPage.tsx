@@ -33,15 +33,11 @@ export default function DrawPage() {
   const drawCount = store.settings.drawMode === 'single' ? 1 : remaining
   const icon = prize ? (PRIZE_ICONS[prize.order] || '🎁') : '🎁'
 
-  // Force cloud animation mode since slot machine is removed
-  const animationMode = 'cloud'
-
   // 检查是否参与人数不足
   const showWarning = availableParticipants.length < remaining && status === 'idle'
 
   // 3D Cloud Animation
   useEffect(() => {
-    if (animationMode !== 'cloud') return
     let running = true
     const animate = () => {
       if (!running) return
@@ -53,7 +49,7 @@ export default function DrawPage() {
       running = false
       cancelAnimationFrame(animRef.current)
     }
-  }, [speed, animationMode])
+  }, [speed])
 
   const getCloudItemStyle = useCallback((index: number, total: number) => {
     const phi = Math.acos(-1 + (2 * index + 1) / total)
@@ -119,25 +115,23 @@ export default function DrawPage() {
     const winners = store.drawWinners(prizeId!, drawCount)
     if (winners.length === 0) return
 
-    if (animationMode === 'cloud') {
-      // Phase 1: Speed up
-      setSpeed(8)
-      setStatus('drawing')
+    // Phase 1: Speed up
+    setSpeed(8)
+    setStatus('drawing')
 
-      // Phase 2: Slow down
-      setTimeout(() => {
-        setSpeed(0.3)
-        setStatus('slowing')
-      }, 2500)
+    // Phase 2: Slow down
+    setTimeout(() => {
+      setSpeed(0.3)
+      setStatus('slowing')
+    }, 2500)
 
-      // Phase 3: Reveal
-      setTimeout(() => {
-        setSpeed(0)
-        setStatus('finished')
-        setCurrentWinners(winners)
-        fireConfetti()
-      }, 3500)
-    }
+    // Phase 3: Reveal
+    setTimeout(() => {
+      setSpeed(0)
+      setStatus('finished')
+      setCurrentWinners(winners)
+      fireConfetti()
+    }, 3500)
   }
 
   const handleContinue = () => {
@@ -205,40 +199,38 @@ export default function DrawPage() {
           </div>
         )}
 
-        {animationMode === 'cloud' && (
-          /* 3D Cloud Animation */
-          <div
-            ref={containerRef}
-            className="cloud-container relative w-full max-w-4xl aspect-square flex items-center justify-center"
-            style={{ minHeight: '600px' }}
-          >
-            <div className="cloud-sphere relative w-full h-full">
-              {status === 'finished' ? (
-                 // Winner display handled above cloud now, so this can be empty or show something else if needed
-                 // But to keep the structure, we might just hide the cloud items or show a celebration effect
-                 <div className="absolute inset-0 flex items-center justify-center">
-                    {/* Optional: Central Celebration Icon or Text */}
-                 </div>
-              ) : (
-                /* Rotating Names */
-                availableParticipants.slice(0, 80).map((p, i) => (
-                  <div
-                    key={p.id}
-                    className="cloud-item px-3 py-1.5 rounded-lg font-body font-medium whitespace-nowrap"
-                    style={{
-                      ...getCloudItemStyle(i, Math.min(availableParticipants.length, 80)),
-                      color: 'var(--foreground)',
-                      backgroundColor: 'var(--accent)',
-                      border: '1px solid var(--border)',
-                    }}
-                  >
-                    {p.name}
-                  </div>
-                ))
-              )}
-            </div>
+        {/* 3D Cloud Animation */}
+        <div
+          ref={containerRef}
+          className="cloud-container relative w-full max-w-4xl aspect-square flex items-center justify-center"
+          style={{ minHeight: '600px' }}
+        >
+          <div className="cloud-sphere relative w-full h-full">
+            {status === 'finished' ? (
+               // Winner display handled above cloud now, so this can be empty or show something else if needed
+               // But to keep the structure, we might just hide the cloud items or show a celebration effect
+               <div className="absolute inset-0 flex items-center justify-center">
+                  {/* Optional: Central Celebration Icon or Text */}
+               </div>
+            ) : (
+              /* Rotating Names */
+              availableParticipants.slice(0, 80).map((p, i) => (
+                <div
+                  key={p.id}
+                  className="cloud-item px-3 py-1.5 rounded-lg font-body font-medium whitespace-nowrap"
+                  style={{
+                    ...getCloudItemStyle(i, Math.min(availableParticipants.length, 80)),
+                    color: 'var(--foreground)',
+                    backgroundColor: 'var(--accent)',
+                    border: '1px solid var(--border)',
+                  }}
+                >
+                  {p.name}
+                </div>
+              ))
+            )}
           </div>
-        )}
+        </div>
 
         {/* Draw Button */}
         <div className="mt-8 sm:mt-12">

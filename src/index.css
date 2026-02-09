@@ -267,33 +267,6 @@
     transition: opacity 0.5s ease;
   }
 
-  /* Slot machine */
-  .slot-window {
-    overflow: hidden;
-    position: relative;
-  }
-
-  .slot-window::before,
-  .slot-window::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    height: 40%;
-    z-index: 10;
-    pointer-events: none;
-  }
-
-  .slot-window::before {
-    top: 0;
-    background: linear-gradient(to bottom, var(--card) 0%, transparent 100%);
-  }
-
-  .slot-window::after {
-    bottom: 0;
-    background: linear-gradient(to top, var(--card) 0%, transparent 100%);
-  }
-
   /* Toast */
   .toast {
     position: fixed;
