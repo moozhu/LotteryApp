@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useLotteryStore } from '@/store/lottery'
 import { ArrowLeft, Plus, Trash2, Upload, Download, Hash, Search, Pencil, GripVertical, Image as ImageIcon, X, AlertTriangle } from 'lucide-react'
+import { Switch } from '@/components/ui/Switch'
 import { THEMES, PRIZE_ICONS } from '@/types'
 import type { Participant, Prize } from '@/types'
 import { downloadFile } from '@/lib/utils'
@@ -830,18 +831,17 @@ function BasicSettingsTab() {
         <h3 className="font-display font-bold text-foreground mb-4">抽奖规则</h3>
         <div className="space-y-4">
           {/* Allow Repeat */}
-          <label className="flex items-center justify-between p-3 rounded-xl bg-muted/50 cursor-pointer hover:bg-muted transition-colors">
+          <div className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
             <div>
               <span className="text-sm font-medium text-foreground block">允许重复中奖</span>
               <span className="text-xs text-muted-foreground">开启后，同一人可被多次抽中</span>
             </div>
-            <input
-              type="checkbox"
+            <Switch
               checked={settings.allowRepeat}
-              onChange={e => updateSettings({ allowRepeat: e.target.checked })}
-              className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+              onChange={(checked) => updateSettings({ allowRepeat: checked })}
+              size="md"
             />
-          </label>
+          </div>
 
           {/* Draw Mode */}
           <div>
@@ -878,24 +878,22 @@ function BasicSettingsTab() {
       <div className="p-5 rounded-2xl bg-card border border-border shadow-card">
         <h3 className="font-display font-bold text-foreground mb-4">功能设置</h3>
         <div className="space-y-3">
-          <label className="flex items-center justify-between p-3 rounded-xl bg-muted/50 cursor-pointer hover:bg-muted transition-colors">
+          <div className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
             <span className="text-sm font-medium text-foreground">开启音效</span>
-            <input
-              type="checkbox"
+            <Switch
               checked={settings.soundEnabled}
-              onChange={e => updateSettings({ soundEnabled: e.target.checked })}
-              className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+              onChange={(checked) => updateSettings({ soundEnabled: checked })}
+              size="md"
             />
-          </label>
-          <label className="flex items-center justify-between p-3 rounded-xl bg-muted/50 cursor-pointer hover:bg-muted transition-colors">
+          </div>
+          <div className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
             <span className="text-sm font-medium text-foreground">显示打赏入口</span>
-            <input
-              type="checkbox"
+            <Switch
               checked={settings.showDonation}
-              onChange={e => updateSettings({ showDonation: e.target.checked })}
-              className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+              onChange={(checked) => updateSettings({ showDonation: checked })}
+              size="md"
             />
-          </label>
+          </div>
         </div>
       </div>
     </div>
