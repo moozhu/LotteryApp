@@ -7,6 +7,7 @@ import { ArrowLeft } from 'lucide-react'
 import confetti from 'canvas-confetti'
 import ParticleBackground from '@/components/ui/ParticleBackground'
 import FireworkEffect from '@/components/ui/FireworkEffect'
+import { soundManager } from '@/lib/sound'
 
 export default function DrawPage() {
   const { prizeId } = useParams<{ prizeId: string }>()
@@ -115,6 +116,9 @@ export default function DrawPage() {
     const winners = store.drawWinners(prizeId!, drawCount)
     if (winners.length === 0) return
 
+    // Play drawing sound
+    soundManager.playDrawing(3500)
+
     // Phase 1: Speed up
     setSpeed(8)
     setStatus('drawing')
@@ -131,6 +135,8 @@ export default function DrawPage() {
       setStatus('finished')
       setCurrentWinners(winners)
       fireConfetti()
+      // Play win sound
+      soundManager.playWin()
     }, 3500)
   }
 

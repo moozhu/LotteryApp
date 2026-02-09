@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useLotteryStore } from '@/store/lottery'
 import FireworkEffect from '@/components/ui/FireworkEffect'
 import ParticleBackground from '@/components/ui/ParticleBackground'
-import { Users, Trophy, Settings, Maximize, RotateCcw, Sparkles, Gift } from 'lucide-react'
+import { Users, Trophy, Settings, Maximize, RotateCcw, Sparkles, Gift, Coffee } from 'lucide-react'
 import { PRIZE_ICONS } from '@/types'
 import { WinnerListModal } from '@/components/modals/WinnerListModal'
 import { ResetConfirmModal } from '@/components/modals/ResetConfirmModal'
@@ -264,6 +264,19 @@ export default function HomePage() {
             })}
         </div>
       </main>
+
+      {/* Donation Entry */}
+      {settings.showDonation && (
+        <footer className="relative z-10 py-4 text-center">
+          <button
+            onClick={() => window.open('https://github.com/moozhu/LotteryApp', '_blank')}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+          >
+            <Coffee size={16} />
+            <span>请作者喝一杯咖啡（支持开发）</span>
+          </button>
+        </footer>
+      )}
 
       {/* Modals */}
       <WinnerListModal open={showWinners} onClose={() => setShowWinners(false)} />
