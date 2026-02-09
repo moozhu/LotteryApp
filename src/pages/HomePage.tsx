@@ -265,25 +265,17 @@ export default function HomePage() {
       {/* Donation Entry */}
       {settings.showDonation && (
         <footer className="relative z-10 py-6 text-center">
-          <button
-            onClick={() => setShowDonation(true)}
-            className="group inline-flex items-center gap-3 px-6 py-3 rounded-2xl bg-card border border-border shadow-card hover:shadow-card-hover hover:-translate-y-1 transition-all duration-300"
-          >
-            <div className="w-10 h-10 rounded-full bg-gradient-primary flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Coffee className="w-5 h-5 text-white" />
-            </div>
-            <div className="text-left">
-              <p className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
-                请 moozhu 喝一杯咖啡
-              </p>
-              <p className="text-xs text-muted-foreground">
-                支持开源项目持续发展
-              </p>
-            </div>
-            <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center group-hover:bg-primary/10 transition-colors">
-              <span className="text-lg">💝</span>
-            </div>
-          </button>
+          <div className="flex items-center justify-center gap-3">
+            <Coffee className="w-5 h-5 text-primary" />
+            <span className="text-sm text-muted-foreground">请 moozhu 喝一杯咖啡</span>
+            <button
+              onClick={() => setShowDonation(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Coffee className="w-3.5 h-3.5" />
+              <span>请客</span>
+            </button>
+          </div>
         </footer>
       )}
 
