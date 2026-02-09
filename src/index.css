@@ -3,6 +3,12 @@
 @tailwind utilities;
 
 @layer base {
+  /* ==================== Default Font Variables ==================== */
+  :root {
+    --font-display: "Inter", "Noto Sans SC", system-ui, sans-serif;
+    --font-body: "Inter", "Noto Sans SC", system-ui, sans-serif;
+  }
+
   /* ==================== Chinese Red Theme (Default) ==================== */
   :root,
   [data-theme="red"] {

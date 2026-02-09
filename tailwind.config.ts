@@ -51,8 +51,8 @@ const config: Config = {
         },
       },
       fontFamily: {
-        display: ['Noto Serif SC', 'serif'],
-        body: ['Noto Sans SC', 'sans-serif'],
+        display: ['var(--font-display)', 'Noto Serif SC', 'serif'],
+        body: ['var(--font-body)', 'Noto Sans SC', 'sans-serif'],
         mono: ['Roboto Mono', 'monospace'],
       },
       borderRadius: {

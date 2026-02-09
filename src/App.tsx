@@ -16,8 +16,16 @@ export default function App() {
     const fontStack = fontFamily === 'serif' 
       ? '"Noto Serif SC", "Songti SC", serif' 
       : '"Inter", "Noto Sans SC", system-ui, sans-serif'
+    const displayFontStack = fontFamily === 'serif'
+      ? '"Noto Serif SC", "Songti SC", serif'
+      : '"Inter", "Noto Sans SC", system-ui, sans-serif'
+    
     document.documentElement.style.fontFamily = fontStack
     document.body.style.fontFamily = fontStack
+    
+    // Set CSS variables for font families to override Tailwind config
+    document.documentElement.style.setProperty('--font-display', displayFontStack)
+    document.documentElement.style.setProperty('--font-body', fontStack)
     
     // Add font-family class to ensure all elements inherit
     document.body.classList.remove('font-sans', 'font-serif')
