@@ -8,6 +8,7 @@ import { PRIZE_ICONS } from '@/types'
 import { WinnerListModal } from '@/components/modals/WinnerListModal'
 import { ResetConfirmModal } from '@/components/modals/ResetConfirmModal'
 import { FirstTimeGuideModal } from '@/components/modals/FirstTimeGuideModal'
+import { DonationModal } from '@/components/modals/DonationModal'
 
 // 奖项图片组件 - 支持本地图片和默认图标
 function PrizeImage({ prize, className = '' }: { prize: { prizeImage?: string; order: number }; className?: string }) {
@@ -51,6 +52,7 @@ export default function HomePage() {
   const [showWinners, setShowWinners] = useState(false)
   const [showReset, setShowReset] = useState(false)
   const [showGuide, setShowGuide] = useState(false)
+  const [showDonation, setShowDonation] = useState(false)
 
   const totalWinners = winners.length
   const remainingPrizes = prizes.filter(p => getWinnersByPrize(p.id).length < p.count).length
@@ -202,19 +204,10 @@ export default function HomePage() {
                   {/* Gradient top accent */}
                   <div className={`absolute inset-0 bg-gradient-to-b ${bgStyle} pointer-events-none`} />
 
-                  {/* Completed overlay */}
-                  {isCompleted && (
-                    <div className="absolute inset-0 flex items-center justify-center z-20">
-                      <span className="px-5 py-2 rounded-full text-sm font-bold bg-muted/90 text-muted-foreground backdrop-blur-sm shadow-sm">
-                        已抽完
-                      </span>
-                    </div>
-                  )}
-
                   {/* Card Content */}
                   <div className="relative z-10 p-6 sm:p-7 flex flex-col items-center text-center">
                     {/* Prize Icon with glow */}
-                    <div className="relative mb-4 w-24 h-24 sm:w-28 sm:h-28">
+                    <div className={`relative mb-4 w-24 h-24 sm:w-28 sm:h-28 ${isCompleted ? 'opacity-60 grayscale' : ''}`}>
                       <div className="w-full h-full transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
                         <PrizeImage prize={prize} className="w-full h-full" />
                       </div>
@@ -226,17 +219,17 @@ export default function HomePage() {
                     </div>
 
                     {/* Prize Name */}
-                    <h3 className="text-xl sm:text-2xl font-display font-bold text-foreground mb-1.5">
+                    <h3 className={`text-xl sm:text-2xl font-display font-bold mb-1.5 ${isCompleted ? 'text-muted-foreground' : 'text-foreground'}`}>
                       {prize.name}
                     </h3>
 
                     {/* Count badge */}
-                    <div className="inline-flex items-center px-3 py-1 rounded-full bg-accent/60 text-xs font-semibold text-foreground mb-2">
+                    <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold mb-2 ${isCompleted ? 'bg-muted text-muted-foreground' : 'bg-accent/60 text-foreground'}`}>
                       {prize.count} 名
                     </div>
 
                     {/* Prize Description */}
-                    <p className="text-sm font-semibold text-primary mb-5">
+                    <p className={`text-sm font-semibold mb-5 ${isCompleted ? 'text-muted-foreground' : 'text-primary'}`}>
                       {prize.prizeName}
                     </p>
 
@@ -250,14 +243,18 @@ export default function HomePage() {
                       </p>
                     </div>
 
-                    {/* Draw Button */}
-                    {!isCompleted && (
-                      <div className="mt-4 w-full">
+                    {/* Draw Button / Completed Button */}
+                    <div className="mt-4 w-full">
+                      {isCompleted ? (
+                        <div className="w-full py-3 rounded-xl text-sm font-bold bg-muted text-muted-foreground text-center border-2 border-border cursor-not-allowed">
+                          已抽完
+                        </div>
+                      ) : (
                         <div className="w-full py-3 rounded-xl text-sm font-bold bg-gradient-primary text-primary-foreground text-center shadow-glow transition-all duration-300 group-hover:shadow-glow-lg group-hover:brightness-110">
                           开始抽奖
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
               )
@@ -267,13 +264,25 @@ export default function HomePage() {
 
       {/* Donation Entry */}
       {settings.showDonation && (
-        <footer className="relative z-10 py-4 text-center">
+        <footer className="relative z-10 py-6 text-center">
           <button
-            onClick={() => window.open('https://github.com/moozhu/LotteryApp', '_blank')}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+            onClick={() => setShowDonation(true)}
+            className="group inline-flex items-center gap-3 px-6 py-3 rounded-2xl bg-card border border-border shadow-card hover:shadow-card-hover hover:-translate-y-1 transition-all duration-300"
           >
-            <Coffee size={16} />
-            <span>请作者喝一杯咖啡（支持开发）</span>
+            <div className="w-10 h-10 rounded-full bg-gradient-primary flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Coffee className="w-5 h-5 text-white" />
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+                请 moozhu 喝一杯咖啡
+              </p>
+              <p className="text-xs text-muted-foreground">
+                支持开源项目持续发展
+              </p>
+            </div>
+            <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center group-hover:bg-primary/10 transition-colors">
+              <span className="text-lg">💝</span>
+            </div>
           </button>
         </footer>
       )}
@@ -282,6 +291,7 @@ export default function HomePage() {
       <WinnerListModal open={showWinners} onClose={() => setShowWinners(false)} />
       <ResetConfirmModal open={showReset} onClose={() => setShowReset(false)} />
       <FirstTimeGuideModal open={showGuide} onClose={() => setShowGuide(false)} />
+      <DonationModal open={showDonation} onClose={() => setShowDonation(false)} />
     </div>
   )
 }

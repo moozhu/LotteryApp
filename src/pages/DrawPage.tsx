@@ -37,12 +37,26 @@ export default function DrawPage() {
   // 检查是否参与人数不足
   const showWarning = availableParticipants.length < remaining && status === 'idle'
 
-  // 3D Cloud Animation
+  // 3D Cloud Animation with sound
   useEffect(() => {
     let running = true
+    let tickCounter = 0
     const animate = () => {
       if (!running) return
       setRotation(prev => prev + speed)
+
+      // Play tick sound based on speed
+      if (status === 'drawing' || status === 'slowing') {
+        tickCounter++
+        // Higher speed = more frequent ticks, higher pitch
+        const tickInterval = Math.max(2, Math.floor(10 - speed))
+        if (tickCounter >= tickInterval) {
+          tickCounter = 0
+          const intensity = Math.min(1, speed / 8)
+          soundManager.playDrawTick(intensity)
+        }
+      }
+
       animRef.current = requestAnimationFrame(animate)
     }
     animRef.current = requestAnimationFrame(animate)
@@ -50,7 +64,7 @@ export default function DrawPage() {
       running = false
       cancelAnimationFrame(animRef.current)
     }
-  }, [speed])
+  }, [speed, status])
 
   const getCloudItemStyle = useCallback((index: number, total: number) => {
     const phi = Math.acos(-1 + (2 * index + 1) / total)
@@ -116,9 +130,6 @@ export default function DrawPage() {
     const winners = store.drawWinners(prizeId!, drawCount)
     if (winners.length === 0) return
 
-    // Play drawing sound
-    soundManager.playDrawing(3500)
-
     // Phase 1: Speed up
     setSpeed(8)
     setStatus('drawing')
@@ -135,7 +146,7 @@ export default function DrawPage() {
       setStatus('finished')
       setCurrentWinners(winners)
       fireConfetti()
-      // Play win sound
+      // Play win sound - layered celebratory effect
       soundManager.playWin()
     }, 3500)
   }
