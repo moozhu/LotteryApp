@@ -266,7 +266,6 @@ export default function HomePage() {
       {settings.showDonation && (
         <footer className="relative z-10 py-6 text-center">
           <div className="flex items-center justify-center gap-3">
-            <Coffee className="w-5 h-5 text-primary" />
             <span className="text-sm text-muted-foreground">请 moozhu 喝一杯咖啡</span>
             <button
               onClick={() => setShowDonation(true)}
