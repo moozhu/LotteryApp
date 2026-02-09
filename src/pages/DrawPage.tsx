@@ -37,7 +37,7 @@ export default function DrawPage() {
   // 检查是否参与人数不足
   const showWarning = availableParticipants.length < remaining && status === 'idle'
 
-  // 3D Cloud Animation with sound
+  // 3D Cloud Animation with slot machine sound
   useEffect(() => {
     let running = true
     let tickCounter = 0
@@ -45,15 +45,15 @@ export default function DrawPage() {
       if (!running) return
       setRotation(prev => prev + speed)
 
-      // Play tick sound based on speed
+      // Play slot machine tick sound based on speed
       if (status === 'drawing' || status === 'slowing') {
         tickCounter++
-        // Higher speed = more frequent ticks, higher pitch
-        const tickInterval = Math.max(2, Math.floor(10 - speed))
+        // Higher speed = more frequent ticks
+        const tickInterval = Math.max(3, Math.floor(12 - speed))
         if (tickCounter >= tickInterval) {
           tickCounter = 0
           const intensity = Math.min(1, speed / 8)
-          soundManager.playDrawTick(intensity)
+          soundManager.playSlotTick(intensity)
         }
       }
 
