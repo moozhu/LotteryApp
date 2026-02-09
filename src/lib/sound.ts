@@ -1,29 +1,17 @@
 // Sound effects manager using Web Audio API
+// All sounds are generated in real-time using Web Audio API, no external files needed
 class SoundManager {
   private audioContext: AudioContext | null = null
   private enabled: boolean = true
-  private noiseBuffer: AudioBuffer | null = null
 
   constructor() {
     this.initAudioContext()
-    this.createNoiseBuffer()
   }
 
   private initAudioContext() {
     if (typeof window !== 'undefined' && !this.audioContext) {
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
     }
-  }
-
-  private createNoiseBuffer() {
-    if (!this.audioContext) return
-    const bufferSize = this.audioContext.sampleRate * 2
-    const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate)
-    const output = buffer.getChannelData(0)
-    for (let i = 0; i < bufferSize; i++) {
-      output[i] = Math.random() * 2 - 1
-    }
-    this.noiseBuffer = buffer
   }
 
   setEnabled(enabled: boolean) {
@@ -43,7 +31,7 @@ class SoundManager {
     return this.audioContext
   }
 
-  // Play click sound - short mechanical tick
+  // Play click sound - short tick
   playClick() {
     if (!this.enabled) return
     const ctx = this.ensureContext()
@@ -65,67 +53,93 @@ class SoundManager {
     oscillator.stop(ctx.currentTime + 0.05)
   }
 
-  // Play slot machine rolling sound - mechanical reel spinning
+  // Play slot machine rolling sound - mechanical reel spinning with "clack-clack" feel
   playSlotTick(speed: number = 1) {
     if (!this.enabled) return
     const ctx = this.ensureContext()
     if (!ctx) return
 
     const now = ctx.currentTime
+    const intensity = Math.min(1, Math.max(0.3, speed))
 
-    // Mechanical "click-clack" sound - two distinct tones
-    const click1 = ctx.createOscillator()
-    const gain1 = ctx.createGain()
-    click1.connect(gain1)
-    gain1.connect(ctx.destination)
+    // Create a mechanical "clack" sound - simulates metal tab hitting
+    // First sound: The "tick" - sharp attack, quick decay
+    const tickOsc = ctx.createOscillator()
+    const tickGain = ctx.createGain()
+    const tickFilter = ctx.createBiquadFilter()
 
-    click1.type = 'square'
-    click1.frequency.setValueAtTime(400 + speed * 200, now)
-    click1.frequency.exponentialRampToValueAtTime(200, now + 0.03)
+    tickOsc.connect(tickFilter)
+    tickFilter.connect(tickGain)
+    tickGain.connect(ctx.destination)
 
-    gain1.gain.setValueAtTime(0.15, now)
-    gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.03)
+    // Use triangle wave for a more "hollow" mechanical sound
+    tickOsc.type = 'triangle'
+    // Frequency based on speed - faster = higher pitch
+    tickOsc.frequency.setValueAtTime(600 + intensity * 400, now)
+    tickOsc.frequency.exponentialRampToValueAtTime(300, now + 0.02)
 
-    click1.start(now)
-    click1.stop(now + 0.03)
+    // Bandpass filter to make it sound more like a mechanical click
+    tickFilter.type = 'bandpass'
+    tickFilter.frequency.value = 1500
+    tickFilter.Q.value = 2
 
-    // Second click for mechanical feel
-    const click2 = ctx.createOscillator()
-    const gain2 = ctx.createGain()
-    click2.connect(gain2)
-    gain2.connect(ctx.destination)
+    // Sharp attack, quick decay
+    tickGain.gain.setValueAtTime(0, now)
+    tickGain.gain.linearRampToValueAtTime(0.2 * intensity, now + 0.005)
+    tickGain.gain.exponentialRampToValueAtTime(0.01, now + 0.04)
 
-    click2.type = 'triangle'
-    click2.frequency.setValueAtTime(300 + speed * 150, now + 0.015)
+    tickOsc.start(now)
+    tickOsc.stop(now + 0.05)
 
-    gain2.gain.setValueAtTime(0, now + 0.015)
-    gain2.gain.linearRampToValueAtTime(0.1, now + 0.02)
-    gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.04)
+    // Second sound: The "clack" response - slightly delayed, lower pitch
+    const clackOsc = ctx.createOscillator()
+    const clackGain = ctx.createGain()
+    const clackFilter = ctx.createBiquadFilter()
 
-    click2.start(now + 0.015)
-    click2.stop(now + 0.04)
+    clackOsc.connect(clackFilter)
+    clackFilter.connect(clackGain)
+    clackGain.connect(ctx.destination)
 
-    // Add mechanical noise/rattle
-    if (this.noiseBuffer && speed > 0.5) {
-      const noise = ctx.createBufferSource()
-      const noiseGain = ctx.createGain()
-      const noiseFilter = ctx.createBiquadFilter()
+    clackOsc.type = 'square'
+    clackOsc.frequency.setValueAtTime(200 + intensity * 100, now + 0.008)
+    clackOsc.frequency.exponentialRampToValueAtTime(100, now + 0.03)
 
-      noise.buffer = this.noiseBuffer
-      noise.connect(noiseFilter)
-      noiseFilter.connect(noiseGain)
-      noiseGain.connect(ctx.destination)
+    clackFilter.type = 'lowpass'
+    clackFilter.frequency.value = 800
 
-      noiseFilter.type = 'bandpass'
-      noiseFilter.frequency.value = 800 + speed * 400
-      noiseFilter.Q.value = 1
+    clackGain.gain.setValueAtTime(0, now + 0.008)
+    clackGain.gain.linearRampToValueAtTime(0.15 * intensity, now + 0.012)
+    clackGain.gain.exponentialRampToValueAtTime(0.01, now + 0.05)
 
-      noiseGain.gain.setValueAtTime(0.03 * speed, now)
-      noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.05)
+    clackOsc.start(now + 0.008)
+    clackOsc.stop(now + 0.06)
 
-      noise.start(now)
-      noise.stop(now + 0.05)
+    // Third layer: Very short noise burst for texture (mechanical rattle)
+    const bufferSize = ctx.sampleRate * 0.02
+    const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate)
+    const output = noiseBuffer.getChannelData(0)
+    for (let i = 0; i < bufferSize; i++) {
+      output[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.3))
     }
+
+    const noise = ctx.createBufferSource()
+    const noiseGain = ctx.createGain()
+    const noiseFilter = ctx.createBiquadFilter()
+
+    noise.buffer = noiseBuffer
+    noise.connect(noiseFilter)
+    noiseFilter.connect(noiseGain)
+    noiseGain.connect(ctx.destination)
+
+    noiseFilter.type = 'bandpass'
+    noiseFilter.frequency.value = 2000 + intensity * 1000
+    noiseFilter.Q.value = 1
+
+    noiseGain.gain.setValueAtTime(0.05 * intensity, now)
+    noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.02)
+
+    noise.start(now)
+    noise.stop(now + 0.02)
   }
 
   // Play win sound - firework explosion "BANG" followed by sparkle
@@ -161,25 +175,30 @@ class SoundManager {
     boomOsc.stop(now + 0.3)
 
     // Layer 2: White noise burst (the "crack" of explosion)
-    if (this.noiseBuffer) {
-      const crack = ctx.createBufferSource()
-      const crackGain = ctx.createGain()
-      const crackFilter = ctx.createBiquadFilter()
-
-      crack.buffer = this.noiseBuffer
-      crack.connect(crackFilter)
-      crackFilter.connect(crackGain)
-      crackGain.connect(ctx.destination)
-
-      crackFilter.type = 'highpass'
-      crackFilter.frequency.value = 1000
-
-      crackGain.gain.setValueAtTime(0.3, now)
-      crackGain.gain.exponentialRampToValueAtTime(0.01, now + 0.1)
-
-      crack.start(now)
-      crack.stop(now + 0.1)
+    const crackBufferSize = ctx.sampleRate * 0.1
+    const crackBuffer = ctx.createBuffer(1, crackBufferSize, ctx.sampleRate)
+    const crackOutput = crackBuffer.getChannelData(0)
+    for (let i = 0; i < crackBufferSize; i++) {
+      crackOutput[i] = Math.random() * 2 - 1
     }
+
+    const crack = ctx.createBufferSource()
+    const crackGain = ctx.createGain()
+    const crackFilter = ctx.createBiquadFilter()
+
+    crack.buffer = crackBuffer
+    crack.connect(crackFilter)
+    crackFilter.connect(crackGain)
+    crackGain.connect(ctx.destination)
+
+    crackFilter.type = 'highpass'
+    crackFilter.frequency.value = 1000
+
+    crackGain.gain.setValueAtTime(0.3, now)
+    crackGain.gain.exponentialRampToValueAtTime(0.01, now + 0.1)
+
+    crack.start(now)
+    crack.stop(now + 0.1)
 
     // Layer 3: Metallic ring (explosion resonance)
     const ringOsc = ctx.createOscillator()
