@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" width="100" height="200">
-  <!-- Strap -->
-  <rect x="35" y="10" width="30" height="180" rx="15" ry="15" fill="#333"/>
-  <!-- Body -->
-  <rect x="30" y="70" width="40" height="60" rx="15" ry="15" fill="#111" stroke="#444" stroke-width="1"/>
-  <!-- Screen -->
-  <rect x="35" y="75" width="30" height="50" rx="10" ry="10" fill="#000"/>
-  <text x="50" y="105" font-family="Arial" font-size="8" fill="#fff" text-anchor="middle">Band 9</text>
-</svg>

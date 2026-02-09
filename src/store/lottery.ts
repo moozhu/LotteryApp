@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { Participant, Prize, Winner, AppSettings } from '@/types'
 import { DEFAULT_PRIZES } from '@/types'
-import { generateId } from '@/lib/utils'
+import { generateId, imageToBase64, validateBackupData } from '@/lib/utils'
 
 const STORAGE_KEY = 'lottery-app-data'
 
@@ -39,7 +39,9 @@ interface LotteryState {
 
   // Data management
   exportData: () => string
+  exportDataWithImages: () => Promise<{ json: string; imageCount: number }>
   importData: (json: string) => boolean
+  importDataWithImages: (json: string) => Promise<{ success: boolean; message: string }>
   resetWinners: () => void
   resetAll: (options: { winners: boolean; participants: boolean; prizes: boolean }) => void
 }
@@ -307,6 +309,46 @@ export const useLotteryStore = create<LotteryState>((set, get) => ({
     }, null, 2)
   },
 
+  exportDataWithImages: async () => {
+    const state = get()
+    const images: Record<string, string> = {}
+    let imageCount = 0
+
+    // 收集所有奖项图片
+    const imagePaths = new Set<string>()
+    state.prizes.forEach(prize => {
+      if (prize.prizeImage && prize.prizeImage.startsWith('/images/')) {
+        imagePaths.add(prize.prizeImage)
+      }
+    })
+
+    // 将图片转换为 Base64
+    for (const path of imagePaths) {
+      const base64 = await imageToBase64(path)
+      if (base64) {
+        images[path] = base64
+        imageCount++
+      }
+    }
+
+    const exportData = {
+      version: '1.1',
+      exportTime: Date.now(),
+      data: {
+        participants: state.participants,
+        prizes: state.prizes,
+        winners: state.winners,
+        settings: state.settings,
+      },
+      images: imageCount > 0 ? images : undefined,
+    }
+
+    return {
+      json: JSON.stringify(exportData, null, 2),
+      imageCount,
+    }
+  },
+
   importData: (json) => {
     try {
       const parsed = JSON.parse(json)
@@ -328,6 +370,64 @@ export const useLotteryStore = create<LotteryState>((set, get) => ({
       console.error('Import failed:', e)
     }
     return false
+  },
+
+  importDataWithImages: async (json) => {
+    try {
+      const parsed = JSON.parse(json)
+      
+      // 验证数据完整性
+      const validation = validateBackupData(parsed)
+      if (!validation.valid) {
+        return { success: false, message: `数据验证失败: ${validation.errors.join(', ')}` }
+      }
+
+      // 处理图片数据
+      const images = parsed.images as Record<string, string> | undefined
+      let importedImages = 0
+
+      if (images && typeof images === 'object') {
+        // 创建图片下载队列
+        for (const [path, base64] of Object.entries(images)) {
+          if (typeof base64 === 'string' && base64.startsWith('data:')) {
+            try {
+              // 下载图片到本地
+              const response = await fetch(base64)
+              const blob = await response.blob()
+              const blobUrl = URL.createObjectURL(blob)
+              
+              // 存储图片引用
+              localStorage.setItem(`prize-image:${path}`, blobUrl)
+              importedImages++
+            } catch (e) {
+              console.warn(`Failed to import image: ${path}`, e)
+            }
+          }
+        }
+      }
+
+      // 更新状态
+      set(state => {
+        const newState = {
+          ...state,
+          participants: parsed.data.participants || state.participants,
+          prizes: parsed.data.prizes || state.prizes,
+          winners: parsed.data.winners || state.winners,
+          settings: { ...state.settings, ...parsed.data.settings },
+        }
+        saveToStorage(newState)
+        return newState
+      })
+
+      const message = importedImages > 0 
+        ? `数据导入成功，包含 ${importedImages} 张图片` 
+        : '数据导入成功'
+      
+      return { success: true, message }
+    } catch (e) {
+      console.error('Import failed:', e)
+      return { success: false, message: `导入失败: ${e instanceof Error ? e.message : '未知错误'}` }
+    }
   },
 
   resetWinners: () => {

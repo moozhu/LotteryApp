@@ -3,11 +3,45 @@ import { useNavigate } from 'react-router-dom'
 import { useLotteryStore } from '@/store/lottery'
 import FireworkEffect from '@/components/ui/FireworkEffect'
 import ParticleBackground from '@/components/ui/ParticleBackground'
-import { Users, Trophy, Settings, Maximize, RotateCcw, Sparkles } from 'lucide-react'
+import { Users, Trophy, Settings, Maximize, RotateCcw, Sparkles, Gift } from 'lucide-react'
 import { PRIZE_ICONS } from '@/types'
 import { WinnerListModal } from '@/components/modals/WinnerListModal'
 import { ResetConfirmModal } from '@/components/modals/ResetConfirmModal'
 import { FirstTimeGuideModal } from '@/components/modals/FirstTimeGuideModal'
+
+// 奖项图片组件 - 支持本地图片和默认图标
+function PrizeImage({ prize, className = '' }: { prize: { prizeImage?: string; order: number }; className?: string }) {
+  const [imageError, setImageError] = useState(false)
+  const [imageLoaded, setImageLoaded] = useState(false)
+  
+  // 如果有本地图片且未加载失败，显示图片
+  if (prize.prizeImage && !imageError) {
+    return (
+      <div className={`relative ${className}`}>
+        {!imageLoaded && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+          </div>
+        )}
+        <img
+          src={prize.prizeImage}
+          alt="奖品图片"
+          className={`w-full h-full object-contain transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+          onError={() => setImageError(true)}
+          onLoad={() => setImageLoaded(true)}
+        />
+      </div>
+    )
+  }
+  
+  // 否则显示默认图标
+  const icon = PRIZE_ICONS[prize.order] || PRIZE_ICONS[4]
+  return (
+    <div className={`flex items-center justify-center ${className}`}>
+      <span className="text-5xl sm:text-6xl">{icon}</span>
+    </div>
+  )
+}
 
 export default function HomePage() {
   const navigate = useNavigate()
@@ -180,12 +214,12 @@ export default function HomePage() {
                   {/* Card Content */}
                   <div className="relative z-10 p-6 sm:p-7 flex flex-col items-center text-center">
                     {/* Prize Icon with glow */}
-                    <div className="relative mb-4">
-                      <div className="text-5xl sm:text-6xl transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
-                        {icon}
+                    <div className="relative mb-4 w-24 h-24 sm:w-28 sm:h-28">
+                      <div className="w-full h-full transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
+                        <PrizeImage prize={prize} className="w-full h-full" />
                       </div>
                       {!isCompleted && (
-                        <div className="absolute inset-0 blur-2xl opacity-30" style={{
+                        <div className="absolute inset-0 blur-2xl opacity-30 -z-10" style={{
                           background: prize.order === 1 ? '#FFD700' : 'var(--primary)',
                         }} />
                       )}

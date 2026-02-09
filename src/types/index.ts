@@ -59,10 +59,10 @@ export const THEMES: ThemeConfig[] = [
 
 // ==================== Default Prizes ====================
 export const DEFAULT_PRIZES: Omit<Prize, 'id' | 'createdAt'>[] = [
-  { name: '一等奖', count: 1, prizeName: 'HUAWEI Mate 80 Pro Max', order: 1, prizeImage: '/images/prizes/huawei-mate80.svg' },
-  { name: '二等奖', count: 2, prizeName: 'iPhone 17', order: 2, prizeImage: '/images/prizes/iphone17.svg' },
-  { name: '三等奖', count: 3, prizeName: 'HUAWEI MatePad Air', order: 3, prizeImage: '/images/prizes/huawei-matepad.svg' },
-  { name: '幸运奖', count: 10, prizeName: '小米手环 9', order: 4, prizeImage: '/images/prizes/xiaomi-band9.svg' },
+  { name: '一等奖', count: 1, prizeName: 'HUAWEI Mate 80 Pro Max', order: 1, prizeImage: '/images/prizes/huawei-mate80.png' },
+  { name: '二等奖', count: 2, prizeName: 'iPhone 17', order: 2, prizeImage: '/images/prizes/iPhone17.png' },
+  { name: '三等奖', count: 3, prizeName: 'HUAWEI MatePad Air', order: 3, prizeImage: '/images/prizes/huawei-matepad.png' },
+  { name: '幸运奖', count: 10, prizeName: '小米手环 10', order: 4, prizeImage: '/images/prizes/xiaomi-band10.png' },
 ]
 
 // ==================== Prize Icons ====================

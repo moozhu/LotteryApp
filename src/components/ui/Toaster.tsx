@@ -31,19 +31,21 @@ export function Toaster() {
   if (toasts.length === 0) return null
 
   return (
-    <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2">
-      {toasts.map(t => (
-        <div
-          key={t.id}
-          className={`animate-fade-in-up px-5 py-3 rounded-xl shadow-lg font-body text-sm font-medium max-w-sm
-            ${t.type === 'success' ? 'bg-green-600 text-white' : ''}
-            ${t.type === 'error' ? 'bg-red-600 text-white' : ''}
-            ${t.type === 'info' ? 'bg-card text-card-foreground border border-border' : ''}
-          `}
-        >
-          {t.message}
-        </div>
-      ))}
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none">
+      <div className="flex flex-col gap-3">
+        {toasts.map(t => (
+          <div
+            key={t.id}
+            className={`animate-fade-in-up px-6 py-4 rounded-xl shadow-2xl font-body text-base font-medium max-w-md pointer-events-auto
+              ${t.type === 'success' ? 'bg-green-600 text-white' : ''}
+              ${t.type === 'error' ? 'bg-red-600 text-white' : ''}
+              ${t.type === 'info' ? 'bg-card text-card-foreground border border-border' : ''}
+            `}
+          >
+            {t.message}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

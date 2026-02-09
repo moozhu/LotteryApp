@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useLotteryStore } from '@/store/lottery'
-import { ArrowLeft, Plus, Trash2, Upload, Download, Hash, Search, Pencil, GripVertical, Image as ImageIcon, X } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Upload, Download, Hash, Search, Pencil, GripVertical, Image as ImageIcon, X, AlertTriangle } from 'lucide-react'
 import { THEMES, PRIZE_ICONS } from '@/types'
 import type { Participant, Prize } from '@/types'
 import { downloadFile } from '@/lib/utils'
@@ -9,6 +9,7 @@ import { toast } from '@/components/ui/Toaster'
 import { Modal } from '@/components/ui/Modal'
 import ParticleBackground from '@/components/ui/ParticleBackground'
 import FireworkEffect from '@/components/ui/FireworkEffect'
+import { ResetConfirmModal } from '@/components/modals/ResetConfirmModal'
 import Papa from 'papaparse'
 import {
   DndContext,
@@ -846,11 +847,28 @@ function BasicSettingsTab() {
 /* ==================== Data Management Tab ==================== */
 function DataManagementTab() {
   const store = useLotteryStore()
+  const [showResetModal, setShowResetModal] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleExport = () => {
     const json = store.exportData()
     downloadFile(json, `lottery-data-${new Date().toISOString().slice(0, 10)}.json`)
     toast('数据已导出')
+  }
+
+  const handleExportWithImages = async () => {
+    setIsExporting(true)
+    try {
+      const { json, imageCount } = await store.exportDataWithImages()
+      downloadFile(json, `lottery-backup-${new Date().toISOString().slice(0, 10)}.json`)
+      toast(imageCount > 0 ? `备份完成，包含 ${imageCount} 张图片` : '备份完成')
+    } catch (error) {
+      toast('备份失败', 'error')
+    } finally {
+      setIsExporting(false)
+    }
   }
 
   const handleExportWinners = () => {
@@ -871,18 +889,51 @@ function DataManagementTab() {
     toast('中奖名单已导出 (可用 Office 打开)')
   }
 
+  const handleImportClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsImporting(true)
+    try {
+      const text = await file.text()
+      const result = await store.importDataWithImages(text)
+      
+      if (result.success) {
+        toast(result.message)
+      } else {
+        toast(result.message, 'error')
+      }
+    } catch (error) {
+      toast('导入失败：文件格式错误', 'error')
+    } finally {
+      setIsImporting(false)
+      // 重置文件输入
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
-       <div className="p-5 rounded-2xl bg-card border border-border shadow-card">
+      {/* 数据导出 */}
+      <div className="p-5 rounded-2xl bg-card border border-border shadow-card">
         <h3 className="font-display font-bold text-foreground mb-4">数据导出</h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <button
-            onClick={handleExport}
-            className="p-4 rounded-xl bg-muted hover:bg-accent transition-colors text-left group"
+            onClick={handleExportWithImages}
+            disabled={isExporting}
+            className="p-4 rounded-xl bg-muted hover:bg-accent transition-colors text-left group disabled:opacity-50"
           >
             <Download className="mb-2 text-primary" size={24} />
-            <p className="font-bold text-foreground">备份所有数据</p>
-            <p className="text-xs text-muted-foreground mt-1">导出包含设置、参与者和中奖记录的 JSON 文件</p>
+            <p className="font-bold text-foreground">完整备份</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {isExporting ? '正在备份...' : '导出所有数据，包含奖项图片'}
+            </p>
           </button>
           <button
             onClick={handleExportWinners}
@@ -895,35 +946,42 @@ function DataManagementTab() {
         </div>
       </div>
 
+      {/* 数据导入 */}
       <div className="p-5 rounded-2xl bg-card border border-border shadow-card">
-        <h3 className="font-display font-bold text-foreground mb-4 text-destructive">危险区域</h3>
-        <div className="space-y-3">
-          <button
-            onClick={() => {
-              if (confirm('确定要清空所有中奖记录吗？此操作不可恢复。')) {
-                store.resetWinners()
-                toast('中奖记录已清空')
-              }
-            }}
-            className="w-full p-3 rounded-xl border border-destructive/30 text-destructive hover:bg-destructive/10 transition-colors text-left flex items-center justify-between"
-          >
-            <span className="text-sm font-medium">清空中奖记录</span>
-            <Trash2 size={16} />
-          </button>
-          <button
-            onClick={() => {
-              if (confirm('确定要重置所有数据吗？包括设置、参与者和中奖记录。此操作不可恢复。')) {
-                store.resetAll({ winners: true, participants: true, prizes: true })
-                toast('所有数据已重置')
-              }
-            }}
-            className="w-full p-3 rounded-xl bg-destructive text-destructive-foreground hover:opacity-90 transition-colors text-left flex items-center justify-between"
-          >
-            <span className="text-sm font-medium">重置应用 (恢复出厂设置)</span>
-            <AlertTriangle size={16} />
-          </button>
-        </div>
+        <h3 className="font-display font-bold text-foreground mb-4">数据导入</h3>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json"
+          onChange={handleFileChange}
+          className="hidden"
+        />
+        <button
+          onClick={handleImportClick}
+          disabled={isImporting}
+          className="w-full py-3 rounded-xl text-sm font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          <Upload size={16} />
+          {isImporting ? '正在导入...' : '导入备份文件（JSON格式）'}
+        </button>
+        <p className="text-xs text-muted-foreground mt-2 text-center">
+          支持导入包含奖项数据和图片的完整备份文件
+        </p>
       </div>
+
+      {/* 谨慎操作 */}
+      <div className="p-5 rounded-2xl bg-card border border-border shadow-card">
+        <h3 className="font-display font-bold text-foreground mb-4">谨慎操作</h3>
+        <button
+          onClick={() => setShowResetModal(true)}
+          className="w-full py-3 rounded-xl text-sm font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+        >
+          <AlertTriangle size={16} />
+          重置数据（清除中奖记录、参与者或奖项数据）
+        </button>
+      </div>
+
+      <ResetConfirmModal open={showResetModal} onClose={() => setShowResetModal(false)} />
     </div>
   )
 }
