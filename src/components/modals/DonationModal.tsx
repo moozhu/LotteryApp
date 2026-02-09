@@ -1,5 +1,5 @@
+import { useEffect, useCallback } from 'react'
 import { X, Coffee } from 'lucide-react'
-import { Modal } from '@/components/ui/Modal'
 
 interface DonationModalProps {
   open: boolean
@@ -7,19 +7,40 @@ interface DonationModalProps {
 }
 
 export function DonationModal({ open, onClose }: DonationModalProps) {
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') onClose()
+  }, [onClose])
+
+  useEffect(() => {
+    if (open) {
+      document.addEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = 'hidden'
+    }
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = ''
+    }
+  }, [open, handleKeyDown])
+
+  if (!open) return null
+
   return (
-    <Modal open={open} onClose={onClose}>
-      <div className="w-full max-w-sm mx-auto">
-        {/* Close button - top right */}
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fade-in"
+        onClick={onClose}
+      />
+      <div className="relative w-full max-w-sm bg-card text-card-foreground rounded-2xl shadow-2xl animate-scale-in p-6">
+        {/* Close button - top right only */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-full hover:bg-accent transition-colors"
+          className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
         >
-          <X className="w-5 h-5 text-muted-foreground" />
+          <X size={18} />
         </button>
 
-        {/* Content - centered, 1:1 aspect ratio feel */}
-        <div className="flex flex-col items-center text-center py-4">
+        {/* Content - centered */}
+        <div className="flex flex-col items-center text-center pt-2">
           {/* Title with icon */}
           <div className="flex items-center gap-2 mb-4">
             <div className="w-10 h-10 rounded-full bg-gradient-primary flex items-center justify-center">
@@ -40,6 +61,6 @@ export function DonationModal({ open, onClose }: DonationModalProps) {
           </div>
         </div>
       </div>
-    </Modal>
+    </div>
   )
 }
