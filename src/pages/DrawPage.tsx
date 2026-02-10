@@ -125,7 +125,8 @@ export default function DrawPage() {
   }, [rotation, status])
 
   const handleDraw = () => {
-    if (status !== 'idle' || remaining <= 0) return
+    // Allow drawing if idle OR finished (for continuous draw), as long as prizes remain
+    if ((status !== 'idle' && status !== 'finished') || remaining <= 0) return
 
     // 1. Prepare
     setStatus('preparing')
@@ -201,9 +202,10 @@ export default function DrawPage() {
   }
 
   const handleContinue = () => {
-    setStatus('idle')
-    setCurrentWinners([])
+    // Reset speed for next draw
     setSpeed(0.5)
+    // Trigger draw immediately
+    handleDraw()
   }
 
   if (!prize) {
@@ -362,7 +364,7 @@ export default function DrawPage() {
                   onClick={handleContinue}
                   className="flex-1 py-3 sm:py-4 rounded-xl text-lg font-bold bg-gradient-primary text-primary-foreground shadow-glow hover:shadow-glow-lg transition-all hover:scale-[1.02]"
                 >
-                  继续 ({updatedRemaining})
+                  继续抽奖 ({updatedRemaining})
                 </button>
               )}
               <button
