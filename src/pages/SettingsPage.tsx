@@ -255,6 +255,11 @@ function ParticipantsTab() {
         if (duplicates.length > 0 && duplicates.length <= 5) {
           toast(`重复数据：${duplicates.join(', ')}`, 'info')
         }
+      } else if (duplicates.length > 0) {
+        toast(`所有数据都已存在，共 ${duplicates.length} 个重复`, 'error')
+        if (duplicates.length <= 5) {
+          toast(`重复数据：${duplicates.join(', ')}`, 'info')
+        }
       } else {
         toast('未找到有效数据，请检查文件格式', 'error')
       }
@@ -293,25 +298,11 @@ function ParticipantsTab() {
 
   const isValidCSVContent = (text: string): boolean => {
     const lines = text.split('\n').filter(line => line.trim())
-    if (lines.length < 2) return false
+    if (lines.length < 1) return false
     
-    const header = lines[0]
-    const hasChineseColumns = header.includes('姓名') || header.includes('工号') || header.includes('部门')
-    const hasEnglishColumns = header.includes('name') || header.includes('employeeId') || header.includes('department')
-    
-    if (!hasChineseColumns && !hasEnglishColumns) return false
-    
-    const dataLines = lines.slice(1)
-    let hasValidData = false
-    for (const line of dataLines) {
-      const columns = line.split(',')
-      if (columns.length >= 2) {
-        hasValidData = true
-        break
-      }
-    }
-    
-    return hasValidData
+    // 只要有内容就认为是有效的CSV（放宽验证）
+    // 实际的数据验证在 processCSVFile 中进行
+    return true
   }
 
   const handleDragOver = (e: React.DragEvent) => {
