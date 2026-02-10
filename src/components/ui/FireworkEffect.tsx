@@ -52,10 +52,13 @@ export default function FireworkEffect({ isActive = true }: FireworkEffectProps)
     }
 
     const animate = () => {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.1)' // Trail effect
+      // Create trail effect by fading out existing content
+      ctx.globalCompositeOperation = 'destination-out'
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.1)'
       ctx.fillRect(0, 0, width, height)
+      ctx.globalCompositeOperation = 'source-over'
 
-      if (Math.random() < 0.02) {
+      if (Math.random() < 0.05) { // Increased frequency
         createFirework()
       }
 
@@ -64,11 +67,13 @@ export default function FireworkEffect({ isActive = true }: FireworkEffectProps)
         p.x += p.vx
         p.y += p.vy
         p.vy += 0.05 // Gravity
-        p.alpha -= 0.01
+        p.alpha -= 0.015 // Faster fade
         ctx.beginPath()
-        ctx.arc(p.x, p.y, 2, 0, Math.PI * 2)
-        ctx.fillStyle = p.color.replace(')', `, ${p.alpha})`).replace('hsl', 'hsla')
+        ctx.arc(p.x, p.y, p.alpha * 3, 0, Math.PI * 2) // Size scales with alpha
+        ctx.fillStyle = p.color
+        ctx.globalAlpha = p.alpha
         ctx.fill()
+        ctx.globalAlpha = 1.0
       })
 
       requestAnimationFrame(animate)
@@ -96,7 +101,7 @@ export default function FireworkEffect({ isActive = true }: FireworkEffectProps)
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 pointer-events-none z-0 opacity-40 mix-blend-screen"
+      className="fixed inset-0 pointer-events-none z-0 opacity-80"
     />
   )
 }

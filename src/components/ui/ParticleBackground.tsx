@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react'
+import { useLotteryStore } from '@/store/lottery'
 
 export default function ParticleBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const theme = useLotteryStore(s => s.settings.theme)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -18,6 +20,16 @@ export default function ParticleBackground() {
     const particles: Particle[] = []
     const particleCount = 50
 
+    // Get primary color from CSS variable
+    const getPrimaryColor = () => {
+      const style = getComputedStyle(document.documentElement)
+      const color = style.getPropertyValue('--primary').trim()
+      // Convert hex to rgb if needed, or just return it if it's a valid color string
+      return color || '#E53935'
+    }
+
+    const primaryColor = getPrimaryColor()
+
     class Particle {
       x: number
       y: number
@@ -25,14 +37,16 @@ export default function ParticleBackground() {
       vy: number
       size: number
       alpha: number
+      color: string
 
       constructor() {
         this.x = Math.random() * width
         this.y = Math.random() * height
         this.vx = (Math.random() - 0.5) * 0.5
         this.vy = (Math.random() - 0.5) * 0.5
-        this.size = Math.random() * 2
-        this.alpha = Math.random() * 0.5 + 0.1
+        this.size = Math.random() * 3 + 1 // Increased size
+        this.alpha = Math.random() * 0.5 + 0.2 // Increased opacity
+        this.color = primaryColor
       }
 
       update() {
@@ -49,8 +63,10 @@ export default function ParticleBackground() {
         if (!ctx) return
         ctx.beginPath()
         ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(255, 255, 255, ${this.alpha})`
+        ctx.fillStyle = this.color
+        ctx.globalAlpha = this.alpha
         ctx.fill()
+        ctx.globalAlpha = 1.0
       }
     }
 
@@ -58,13 +74,15 @@ export default function ParticleBackground() {
       particles.push(new Particle())
     }
 
+    let animationId: number
+
     const animate = () => {
       ctx.clearRect(0, 0, width, height)
       particles.forEach(p => {
         p.update()
         p.draw()
       })
-      requestAnimationFrame(animate)
+      animationId = requestAnimationFrame(animate)
     }
 
     animate()
@@ -77,13 +95,16 @@ export default function ParticleBackground() {
     }
 
     window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      cancelAnimationFrame(animationId)
+    }
+  }, [theme])
 
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 pointer-events-none z-0 opacity-30"
+      className="fixed inset-0 pointer-events-none z-0"
     />
   )
 }
