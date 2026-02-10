@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLotteryStore } from '@/store/lottery'
 import BackgroundEffects from '@/components/ui/BackgroundEffects'
-import { Users, Trophy, Settings, Maximize, RotateCcw, Sparkles, Gift, Coffee } from 'lucide-react'
+import { Users, Trophy, Settings, Maximize, RotateCcw, Gift, Coffee } from 'lucide-react'
 import { PRIZE_ICONS } from '@/types'
 import { WinnerListModal } from '@/components/modals/WinnerListModal'
 import { ResetConfirmModal } from '@/components/modals/ResetConfirmModal'
@@ -149,14 +149,10 @@ export default function HomePage() {
       <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 sm:px-8 py-6 sm:py-10">
         {/* Title Section */}
         <div className="text-center mb-10 sm:mb-14 animate-fade-in">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-medium mb-4">
-            <Sparkles size={12} />
-            <span>年度盛典</span>
-          </div>
-          <h1 className="text-fluid-4xl font-display font-bold text-gradient mb-4 tracking-tight leading-tight drop-shadow-sm">
+          <h1 className="text-5xl sm:text-7xl font-display font-bold text-gradient mb-6 tracking-tight leading-tight drop-shadow-sm">
             {settings.title}
           </h1>
-          <p className="text-fluid-base text-muted-foreground font-body tracking-wide">
+          <p className="text-xl sm:text-2xl text-muted-foreground font-body tracking-wide">
             共 <span className="font-bold text-foreground">{participants.length}</span> 位参与者
             <span className="mx-2 opacity-40">·</span>
             <span className="font-bold text-foreground">{totalWinners}</span> 人已中奖
