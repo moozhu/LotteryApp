@@ -89,15 +89,9 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col relative overflow-hidden">
-      {/* Layered decorative background */}
-      <div className="absolute inset-0 bg-gradient-bg" />
+    <div className="min-h-screen flex flex-col bg-gradient-bg relative overflow-hidden">
       <ParticleBackground />
       <FireworkEffect isActive={true} />
-      <div
-        className="absolute inset-0 opacity-[0.06] pointer-events-none"
-        style={{ backgroundImage: 'url(/images/hero-bg.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}
-      />
       {/* Radial glow behind title */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full opacity-20 pointer-events-none"
         style={{ background: 'radial-gradient(ellipse, var(--primary) 0%, transparent 70%)' }}
