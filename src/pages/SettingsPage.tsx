@@ -199,65 +199,52 @@ function ParticipantsTab() {
       return
     }
     
-    if (file.size > 10 * 1024 * 1024) {
-      toast('文件大小超过限制（最大 10MB）', 'error')
+    if (file.size > 50 * 1024 * 1024) {
+      toast('文件大小超过限制（最大 50MB）', 'error')
       return
     }
 
     try {
-      const text = await readFileWithEncoding(file)
-      console.log('读取的文件内容:', text.substring(0, 200))
-      
-      // 移除 BOM 标记（WPS/Excel 可能在文件开头添加）
-      const cleanText = text.replace(/^\uFEFF/, '')
-      
-      // 检测分隔符（WPS 可能使用分号或制表符）
-      const firstLine = cleanText.split(/\r?\n/)[0] || ''
-      let delimiter = ','
-      if (firstLine.includes(';') && !firstLine.includes(',')) {
-        delimiter = ';'
-      } else if (firstLine.includes('\t') && !firstLine.includes(',')) {
-        delimiter = '\t'
-      }
-      
-      console.log('使用的分隔符:', delimiter)
-      
-      const parsedData = Papa.parse(cleanText, {
-        header: true,
-        skipEmptyLines: true,
-        delimiter: delimiter,
-        transformHeader: (header: string) => {
-          // 移除表头中的引号和空格
-          return header.replace(/^["']|["']$/g, '').trim()
-        },
-        transform: (value: string) => {
-          // 移除单元格中的引号
-          return value.replace(/^["']|["']$/g, '').trim()
+      const { text, encoding } = await readFileWithEncoding(file)
+      const normalizedText = normalizeNewlines(text.replace(/^\uFEFF/, ''))
+      const { parsed, delimiter, errors, warnings } = parseCsvContent(normalizedText)
+
+      if (errors.length > 0) {
+        toast(errors[0], 'error')
+        if (errors.length > 1) {
+          toast(errors.slice(1, 3).join('；'), 'info')
         }
-      })
-      
-      console.log('解析结果:', parsedData)
+        return
+      }
 
       const imported: Omit<Participant, 'id' | 'createdAt'>[] = []
       const duplicates: string[] = []
-      const existingIds = new Set(store.participants.map(p => p.employeeId))
-      const existingNames = new Set(store.participants.map(p => p.name))
+      const invalidRows: number[] = []
+      const existingIds = new Set(store.participants.map(p => normalizeEmployeeId(p.employeeId)))
+      const existingNames = new Set(store.participants.map(p => normalizeName(p.name)))
+      let autoIdCounter = store.participants.length + 1
 
-      for (const row of parsedData.data as Record<string, string>[]) {
-        const eName = row['姓名'] || row['name'] || row['Name'] || ''
-        const eId = row['工号'] || row['employeeId'] || row['ID'] || row['id'] || ''
-        const eDept = row['部门'] || row['department'] || row['Department'] || ''
-        
-        if (!eName.trim()) continue
+      for (let index = 0; index < parsed.data.length; index++) {
+        const row = parsed.data[index] as Record<string, string | undefined>
+        const eName = extractRowValue(row, parsed.mappedHeaders.name)
+        const eId = extractRowValue(row, parsed.mappedHeaders.employeeId)
+        const eDept = extractRowValue(row, parsed.mappedHeaders.department)
 
-        const finalEmployeeId = eId.trim() || String(store.participants.length + imported.length + 1).padStart(3, '0')
-        const finalName = eName.trim()
+        if (!eName) {
+          invalidRows.push(index + 2)
+          continue
+        }
 
-        if (existingIds.has(finalEmployeeId)) {
+        const finalName = eName
+        const finalEmployeeId = eId || getNextEmployeeId(() => autoIdCounter++, existingIds)
+        const normalizedId = normalizeEmployeeId(finalEmployeeId)
+        const normalizedName = normalizeName(finalName)
+
+        if (existingIds.has(normalizedId)) {
           duplicates.push(`工号 ${finalEmployeeId}`)
           continue
         }
-        if (existingNames.has(finalName)) {
+        if (existingNames.has(normalizedName)) {
           duplicates.push(`姓名 ${finalName}`)
           continue
         }
@@ -265,67 +252,299 @@ function ParticipantsTab() {
         imported.push({
           employeeId: finalEmployeeId,
           name: finalName,
-          department: eDept.trim() || undefined,
+          department: eDept || undefined,
         })
-        existingIds.add(finalEmployeeId)
-        existingNames.add(finalName)
+        existingIds.add(normalizedId)
+        existingNames.add(normalizedName)
       }
 
       if (imported.length > 0) {
         store.importParticipants(imported)
         const duplicateMsg = duplicates.length > 0 ? `，已排除 ${duplicates.length} 个重复数据` : ''
-        toast(`成功导入 ${imported.length} 位参与者${duplicateMsg}`)
+        const invalidMsg = invalidRows.length > 0 ? `，已忽略 ${invalidRows.length} 行空姓名` : ''
+        const encodingMsg = encoding ? `（编码：${encoding}，分隔符：${delimiter}）` : ''
+        toast(`成功导入 ${imported.length} 位参与者${duplicateMsg}${invalidMsg}${encodingMsg}`)
         if (duplicates.length > 0 && duplicates.length <= 5) {
           toast(`重复数据：${duplicates.join(', ')}`, 'info')
+        }
+        if (invalidRows.length > 0 && invalidRows.length <= 5) {
+          toast(`空姓名行：${invalidRows.join(', ')}`, 'info')
+        }
+        if (warnings.length > 0) {
+          toast(warnings.slice(0, 2).join('；'), 'info')
         }
       } else if (duplicates.length > 0) {
         toast(`所有数据都已存在，共 ${duplicates.length} 个重复`, 'error')
         if (duplicates.length <= 5) {
           toast(`重复数据：${duplicates.join(', ')}`, 'info')
         }
+      } else if (invalidRows.length > 0) {
+        toast(`未找到有效数据，${invalidRows.length} 行姓名为空`, 'error')
       } else {
         toast('未找到有效数据，请检查文件格式', 'error')
       }
     } catch (error) {
-      console.error('文件导入失败:', error)
-      toast('文件解析失败，请检查文件格式', 'error')
+      const message = error instanceof Error ? error.message : '文件解析失败，请检查文件格式'
+      toast(message, 'error')
     }
   }
 
-  const readFileWithEncoding = async (file: File): Promise<string> => {
-    const encodings = ['UTF-8', 'GBK', 'GB2312', 'Big5', 'UTF-16LE', 'UTF-16BE']
-    
+  const readFileWithEncoding = async (file: File): Promise<{ text: string; encoding: string }> => {
+    const buffer = await readFileAsArrayBuffer(file)
+    const bom = detectBom(buffer)
+    if (bom) {
+      const text = decodeBuffer(buffer.slice(bom.offset), bom.encoding)
+      if (isValidCSVContent(text)) {
+        return { text, encoding: bom.encoding }
+      }
+    }
+
+    const encodings = ['utf-8', 'gbk', 'gb2312', 'big5', 'utf-16le', 'utf-16be']
+    const scored: { encoding: string; text: string; score: number }[] = []
+
     for (const encoding of encodings) {
       try {
-        const text = await readFileAsText(file, encoding)
-        if (isValidCSVContent(text)) {
-          console.log(`成功使用 ${encoding} 编码读取文件`)
-          return text
-        }
+        const text = decodeBuffer(buffer, encoding)
+        if (!isValidCSVContent(text)) continue
+        const score = scoreDecodedText(text)
+        scored.push({ encoding, text, score })
       } catch (error) {
         continue
       }
     }
-    
-    throw new Error('无法识别文件编码')
+
+    const best = scored.sort((a, b) => b.score - a.score)[0]
+    if (best) {
+      return { text: best.text, encoding: best.encoding }
+    }
+
+    throw new Error('无法识别文件编码，请保存为 UTF-8 或 GBK 后重试')
   }
 
-  const readFileAsText = (file: File, encoding: string): Promise<string> => {
+  const readFileAsArrayBuffer = (file: File): Promise<ArrayBuffer> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
-      reader.onload = () => resolve(reader.result as string)
+      reader.onload = () => resolve(reader.result as ArrayBuffer)
       reader.onerror = () => reject(new Error('文件读取失败'))
-      reader.readAsText(file, encoding)
+      reader.readAsArrayBuffer(file)
     })
   }
 
   const isValidCSVContent = (text: string): boolean => {
-    const lines = text.split('\n').filter(line => line.trim())
+    const lines = text.split(/\r?\n/).filter(line => line.trim())
     if (lines.length < 1) return false
     
-    // 只要有内容就认为是有效的CSV（放宽验证）
-    // 实际的数据验证在 processCSVFile 中进行
     return true
+  }
+
+  const normalizeNewlines = (text: string) => {
+    if (text.includes('\n')) return text
+    if (text.includes('\r')) return text.replace(/\r/g, '\n')
+    return text
+  }
+
+  const detectBom = (buffer: ArrayBuffer) => {
+    const bytes = new Uint8Array(buffer.slice(0, 4))
+    if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+      return { encoding: 'utf-8', offset: 3 }
+    }
+    if (bytes[0] === 0xff && bytes[1] === 0xfe) {
+      return { encoding: 'utf-16le', offset: 2 }
+    }
+    if (bytes[0] === 0xfe && bytes[1] === 0xff) {
+      return { encoding: 'utf-16be', offset: 2 }
+    }
+    return null
+  }
+
+  const decodeBuffer = (buffer: ArrayBuffer, encoding: string) => {
+    return new TextDecoder(encoding).decode(buffer)
+  }
+
+  const scoreDecodedText = (text: string) => {
+    const sample = text.slice(0, 4000)
+    const replacementCount = (sample.match(/\uFFFD/g) || []).length
+    const nullCount = (sample.match(/\u0000/g) || []).length
+    const headerScore = /姓名|name|employeeid|工号|部门|department/i.test(sample) ? 1000 : 0
+    const printableScore = sample.length - replacementCount * 10 - nullCount * 50
+    return headerScore + printableScore
+  }
+
+  const normalizeHeader = (header: string) => {
+    return header
+      .replace(/^\uFEFF/, '')
+      .replace(/^["']|["']$/g, '')
+      .replace(/\u3000/g, ' ')
+      .trim()
+      .replace(/\s+/g, '')
+      .toLowerCase()
+  }
+
+  const normalizeEmployeeId = (value: string) => {
+    return value.replace(/\u00A0/g, ' ').replace(/\u3000/g, ' ').trim()
+  }
+
+  const normalizeName = (value: string) => {
+    return value.replace(/\u00A0/g, ' ').replace(/\u3000/g, ' ').trim().replace(/\s+/g, ' ').toLowerCase()
+  }
+
+  const extractRowValue = (row: Record<string, string | undefined>, key?: string) => {
+    if (!key) return ''
+    const raw = row[key]
+    if (raw === undefined || raw === null) return ''
+    return String(raw).replace(/\u00A0/g, ' ').replace(/\u3000/g, ' ').trim()
+  }
+
+  const getNextEmployeeId = (nextCounter: () => number, existing: Set<string>) => {
+    let id = String(nextCounter()).padStart(3, '0')
+    while (existing.has(normalizeEmployeeId(id))) {
+      id = String(nextCounter()).padStart(3, '0')
+    }
+    return id
+  }
+
+  const detectDelimiter = (text: string) => {
+    const lines = text.split(/\r?\n/).filter(line => line.trim()).slice(0, 5)
+    const candidates = [',', '，', ';', '\t', '|']
+    let best = { delimiter: ',', count: -1 }
+
+    for (const delimiter of candidates) {
+      let total = 0
+      for (const line of lines) {
+        total += countDelimiter(line, delimiter)
+      }
+      if (total > best.count) {
+        best = { delimiter, count: total }
+      }
+    }
+    return best.delimiter
+  }
+
+  const countDelimiter = (line: string, delimiter: string) => {
+    let count = 0
+    let inQuotes = false
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i]
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          i++
+        } else {
+          inQuotes = !inQuotes
+        }
+      } else if (!inQuotes && char === delimiter) {
+        count++
+      }
+    }
+    return count
+  }
+
+  const parseCsvContent = (text: string) => {
+    const emptyParsed = {
+      data: [] as Record<string, string | undefined>[],
+      mappedHeaders: {
+        name: undefined as string | undefined,
+        employeeId: undefined as string | undefined,
+        department: undefined as string | undefined
+      }
+    }
+    const errors: string[] = []
+    const warnings: string[] = []
+
+    if (!text.trim()) {
+      return { parsed: emptyParsed, delimiter: ',', errors: ['文件为空，请检查内容'], warnings }
+    }
+
+    // 检测分隔符，优先使用常见分隔符
+    const delimiter = detectDelimiter(text)
+    
+    // 使用 papaparse 解析
+    const parsedData = Papa.parse(text, {
+      header: true,
+      skipEmptyLines: 'greedy', // 更严格的空行跳过
+      delimiter,
+      transformHeader: (header: string) => {
+        // 移除 BOM 和首尾空白
+        return header.replace(/^\uFEFF/, '').trim()
+      },
+      transform: (value: string) => {
+        // 移除首尾空白
+        return value.trim()
+      }
+    })
+
+    if (parsedData.errors.length > 0) {
+      const details = parsedData.errors.slice(0, 3).map(err => {
+        const row = typeof err.row === 'number' ? err.row + 1 : '未知'
+        return `第 ${row} 行：${err.message}`
+      })
+      warnings.push(`解析警告：${details.join('；')}`)
+      if (parsedData.data.length === 0) {
+        errors.push('CSV 解析失败，请检查引号、换行或分隔符是否正确')
+      }
+    }
+
+    const fields = parsedData.meta.fields?.filter(Boolean) ?? []
+    if (fields.length === 0) {
+      errors.push('未识别到表头，请确保首行是列名')
+      return { parsed: emptyParsed, delimiter, errors, warnings }
+    }
+
+    const headerMap = new Map<string, string>()
+    for (const field of fields) {
+      headerMap.set(normalizeHeader(field), field)
+    }
+
+    // 调试日志
+    console.log('CSV Headers:', fields)
+    console.log('Normalized Headers:', Array.from(headerMap.keys()))
+
+    const findHeader = (aliases: string[]) => {
+      for (const alias of aliases) {
+        const normalized = normalizeHeader(alias)
+        const found = headerMap.get(normalized)
+        if (found) return found
+      }
+      return undefined
+    }
+
+    const nameHeader = findHeader(['姓名', 'name', '用户名', '人员姓名', 'user_name', 'username'])
+    const idHeader = findHeader(['工号', 'employeeid', 'employee_id', 'id', '编号', 'user_id', 'userid'])
+    const deptHeader = findHeader(['部门', 'department', 'dept', '事业部', 'group'])
+
+    if (!nameHeader) {
+      // 尝试根据列位置推断（如果有3列且没匹配到，假设中间是姓名）
+      if (fields.length === 3 && !idHeader && !deptHeader) {
+        warnings.push('未匹配到标准表头，尝试按位置解析：工号,姓名,部门')
+        return {
+          parsed: {
+            data: parsedData.data as Record<string, string | undefined>[],
+            mappedHeaders: {
+              name: fields[1],
+              employeeId: fields[0],
+              department: fields[2]
+            }
+          },
+          delimiter,
+          errors,
+          warnings
+        }
+      }
+      errors.push(`缺少必需列：姓名。已识别列：${fields.join(', ')}`)
+    }
+
+    return {
+      parsed: {
+        data: parsedData.data as Record<string, string | undefined>[],
+        mappedHeaders: {
+          name: nameHeader,
+          employeeId: idHeader,
+          department: deptHeader
+        }
+      },
+      delimiter,
+      errors,
+      warnings
+    }
   }
 
   const handleDragOver = (e: React.DragEvent) => {
