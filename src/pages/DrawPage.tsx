@@ -4,7 +4,6 @@ import { useLotteryStore } from '@/store/lottery'
 import { PRIZE_ICONS } from '@/types'
 import type { Participant, DrawStatus } from '@/types'
 import { ArrowLeft } from 'lucide-react'
-import BackgroundEffects from '@/components/ui/BackgroundEffects'
 import { soundManager } from '@/lib/sound'
 
 export default function DrawPage() {
@@ -22,9 +21,6 @@ export default function DrawPage() {
   const [currentWinners, setCurrentWinners] = useState<Participant[]>([])
   const [rotation, setRotation] = useState(0)
   const [speed, setSpeed] = useState(0.5)
-  // Removed showFireworks state as we rely on BackgroundEffects auto or specific trigger if needed
-  // actually we might want a burst when winning, let's keep a trigger
-  const [triggerFireworks, setTriggerFireworks] = useState(false)
   
   const animRef = useRef<number>(0)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -83,6 +79,16 @@ export default function DrawPage() {
   }, [speed, status])
 
   const getCloudItemStyle = useCallback((index: number, total: number, isWinner: boolean) => {
+    // Hide winners when finished (they move to top list)
+    if (status === 'finished' && isWinner) {
+      return {
+        transform: 'scale(0)',
+        opacity: 0,
+        zIndex: 0,
+        transition: 'all 0.5s ease-in'
+      }
+    }
+
     // If highlighting and isWinner, use special transform
     if (status === 'highlighting' && isWinner) {
       return {
@@ -173,12 +179,11 @@ export default function DrawPage() {
       setStatus('slowing')
     }, 2500)
 
-    // Phase 3: Highlight (Stop and Show Winners)
+    // Phase 3: Highlight (Stop and Show Winners in Cloud)
     setTimeout(() => {
       setSpeed(0)
       setStatus('highlighting')
       setCurrentWinners(winners)
-      setTriggerFireworks(true)
       soundManager.playWin()
       
       // Haptic feedback if available
@@ -186,11 +191,12 @@ export default function DrawPage() {
         navigator.vibrate([100, 50, 100])
       }
       
-      // Phase 4: Restore / Finished (after 10s)
+      // Phase 4: Move to Top List (after 2s)
       setTimeout(() => {
         setStatus('finished')
-        setTriggerFireworks(false)
-      }, 10000)
+        // At this point, the 'finished' status will render the top list
+        // and we can optionally clear them from cloud or keep them
+      }, 2000)
     }, 3500)
   }
 
@@ -213,12 +219,6 @@ export default function DrawPage() {
 
   return (
     <div className="h-screen flex flex-col bg-gradient-bg relative overflow-hidden">
-      {/* Background with soft particles matching SettingsPage */}
-      <BackgroundEffects 
-        showFireworks={triggerFireworks} 
-        onFireworksComplete={() => setTriggerFireworks(false)} 
-        // Auto defaults to true in component, which gives soft particles
-      />
       
       {/* Adaptive Title Status Bar */}
       <header className="flex-none relative z-10 flex items-center justify-between px-4 sm:px-8 py-4 sm:py-6 bg-background/10 backdrop-blur-[2px]">
@@ -247,6 +247,26 @@ export default function DrawPage() {
           {drawn} / {prize.count}
         </div>
       </header>
+
+      {/* Current Winners List (Above Cloud) */}
+      <div className="flex-none relative z-10 flex justify-center py-4 min-h-[100px]">
+        {status === 'finished' && currentWinners.length > 0 && (
+          <div className="flex flex-wrap justify-center gap-4">
+            {currentWinners.map((w, index) => (
+              <div 
+                key={w.id}
+                className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-8 py-4 rounded-xl shadow-lg flex items-center gap-3 transform transition-all duration-500 hover:scale-105 animate-fly-in"
+                style={{ 
+                  animationDelay: `${index * 100}ms`
+                }}
+              >
+                <span className="text-2xl font-bold">{w.name}</span>
+                <span className="opacity-90 text-sm border-l border-white/30 pl-3">{w.employeeId}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Main Cloud Area - Centered and occupying available space */}
       <main className="flex-1 relative z-10 flex items-center justify-center overflow-hidden w-full">
@@ -283,7 +303,7 @@ export default function DrawPage() {
       </main>
 
       {/* Footer - Fixed/Sticky Bottom Area */}
-      <footer className="flex-none relative z-20 px-4 py-6 sm:py-8 bg-gradient-to-t from-background via-background/90 to-transparent flex flex-col items-center justify-end pb-safe">
+      <footer className="flex-none relative z-20 px-4 pb-[20px] pt-4 bg-gradient-to-t from-background via-background/90 to-transparent flex flex-col items-center justify-end">
         <div className="w-full max-w-md mx-auto space-y-4">
           {status === 'idle' && updatedRemaining > 0 && (
             <>
@@ -349,8 +369,15 @@ export default function DrawPage() {
         .animate-pulse-scale {
           animation: pulse-scale 2s infinite ease-in-out;
         }
+        @keyframes fly-in {
+          0% { opacity: 0; transform: translateY(200px) scale(0.1); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .animate-fly-in {
+          animation: fly-in 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        }
         .pb-safe {
-          padding-bottom: env(safe-area-inset-bottom, 24px);
+          padding-bottom: env(safe-area-inset-bottom, 20px);
         }
       `}</style>
     </div>
