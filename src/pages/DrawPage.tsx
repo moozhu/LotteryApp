@@ -250,20 +250,42 @@ export default function DrawPage() {
 
       {/* Current Winners List (Above Cloud) */}
       <div className="flex-none relative z-10 flex justify-center py-4 min-h-[100px]">
-        {status === 'finished' && currentWinners.length > 0 && (
-          <div className="flex flex-wrap justify-center gap-4">
-            {currentWinners.map((w, index) => (
-              <div 
-                key={w.id}
-                className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-8 py-4 rounded-xl shadow-lg flex items-center gap-3 transform transition-all duration-500 hover:scale-105 animate-fly-in"
-                style={{ 
-                  animationDelay: `${index * 100}ms`
-                }}
-              >
-                <span className="text-2xl font-bold">{w.name}</span>
-                <span className="opacity-90 text-sm border-l border-white/30 pl-3">{w.employeeId}</span>
-              </div>
-            ))}
+        {/* Always show winners if there are any */}
+        {(status === 'finished' || status === 'idle' || status === 'preparing' || status === 'drawing' || status === 'slowing' || status === 'highlighting') && prizeWinners.length > 0 && (
+          <div className="flex flex-wrap justify-center gap-4 px-4 max-w-6xl mx-auto max-h-[180px] overflow-y-auto custom-scrollbar">
+            {prizeWinners.map((w, index) => {
+              // Check if this winner is from the current draw batch
+              // We identify "new" winners by checking if they are in currentWinners state
+              // AND we are in 'finished' state (meaning the reveal animation is happening)
+              const isNew = status === 'finished' && currentWinners.some(cw => cw.id === w.participantId)
+              
+              // If we are NOT finished yet, and this person is a "new" winner (in currentWinners),
+              // we should NOT show them yet in the top list (they are still in the cloud or being drawn)
+              // But wait, if we are in 'idle' (after 'finished'), everyone should be shown.
+              // If we are in 'drawing'/'slowing'/'highlighting', the new winners are being processed.
+              // So, if currentWinners contains this person, ONLY show them if status === 'finished' (or subsequent idle?)
+              // Actually, simpler logic:
+              // 1. If it's a past winner (not in currentWinners), ALWAYS show.
+              // 2. If it's a current winner (in currentWinners), ONLY show if status === 'finished' (fly-in phase) or 'idle' (after continue).
+              
+              const isCurrentBatch = currentWinners.some(cw => cw.id === w.participantId)
+              const shouldShow = !isCurrentBatch || (status === 'finished' || status === 'idle')
+              
+              if (!shouldShow) return null
+
+              return (
+                <div 
+                  key={w.id}
+                  className={`bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-6 py-3 rounded-xl shadow-lg flex items-center gap-3 transform transition-all duration-500 hover:scale-105 ${isNew ? 'animate-fly-in' : ''}`}
+                  style={{ 
+                    animationDelay: isNew ? `${index * 100}ms` : '0ms'
+                  }}
+                >
+                  <span className="text-xl font-bold">{w.participant.name}</span>
+                  <span className="opacity-90 text-xs border-l border-white/30 pl-3">{w.participant.employeeId}</span>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
