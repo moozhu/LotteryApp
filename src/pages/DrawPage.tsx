@@ -239,7 +239,7 @@ export default function DrawPage() {
             <img 
               src={prize.prizeImage} 
               alt={prize.prizeName} 
-              className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-xl shadow-md border-2 border-white/20"
+              className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-xl border-2 border-white/20"
             />
           ) : (
             <span className="text-4xl sm:text-5xl filter drop-shadow-md">{icon}</span>
