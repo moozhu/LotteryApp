@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useLotteryStore } from '@/store/lottery'
-import { ArrowLeft, Plus, Trash2, Upload, Download, Hash, Search, Pencil, GripVertical, Image as ImageIcon, X, AlertTriangle, FileSpreadsheet } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Upload, Download, Hash, Search, Pencil, GripVertical, Image as ImageIcon, X, AlertTriangle } from 'lucide-react'
 import { Switch } from '@/components/ui/Switch'
 import { THEMES, PRIZE_ICONS } from '@/types'
 import type { Participant, Prize } from '@/types'
@@ -11,7 +11,7 @@ import { Modal } from '@/components/ui/Modal'
 import ParticleBackground from '@/components/ui/ParticleBackground'
 import FireworkEffect from '@/components/ui/FireworkEffect'
 import { ResetConfirmModal } from '@/components/modals/ResetConfirmModal'
-import * as XLSX from 'xlsx'
+import Papa from 'papaparse'
 import {
   DndContext,
   closestCenter,
@@ -118,21 +118,27 @@ function ParticipantsTab() {
   const handleAdd = () => {
     if (!name.trim()) { toast('请输入姓名', 'error'); return }
     
-    const newEmployeeId = employeeId.trim() || String(store.participants.length + 1).padStart(3, '0')
+    const finalEmployeeId = employeeId.trim() || String(store.participants.length + 1).padStart(3, '0')
+    const finalName = name.trim()
     
-    if (store.participants.some(p => p.employeeId === newEmployeeId)) {
-      toast('该工号已存在，请检查', 'error')
-      return
-    }
+    const existingParticipant = store.participants.find(p => 
+      p.employeeId === finalEmployeeId || p.name === finalName
+    )
     
-    if (store.participants.some(p => p.name === name.trim())) {
-      toast('该姓名已存在，请检查', 'error')
+    if (existingParticipant) {
+      if (existingParticipant.employeeId === finalEmployeeId && existingParticipant.name === finalName) {
+        toast('该参与者已存在（工号和姓名重复）', 'error')
+      } else if (existingParticipant.employeeId === finalEmployeeId) {
+        toast(`工号 "${finalEmployeeId}" 已存在，请使用其他工号`, 'error')
+      } else {
+        toast(`姓名 "${finalName}" 已存在，请检查是否重复`, 'error')
+      }
       return
     }
     
     store.addParticipant({
-      employeeId: newEmployeeId,
-      name: name.trim(),
+      employeeId: finalEmployeeId,
+      name: finalName,
       department: department.trim() || undefined,
     })
     setName('')
@@ -151,6 +157,8 @@ function ParticipantsTab() {
     
     const existingIds = new Set(store.participants.map(p => p.employeeId))
     const conflictIds: string[] = []
+    const overlapRanges: string[] = []
+    
     for (let i = start; i <= end; i++) {
       const id = String(i).padStart(3, '0')
       if (existingIds.has(id)) {
@@ -159,7 +167,16 @@ function ParticipantsTab() {
     }
     
     if (conflictIds.length > 0) {
-      toast(`号码段冲突：工号 ${conflictIds.join(', ')} 已存在`, 'error')
+      if (conflictIds.length === end - start + 1) {
+        toast(`号码段 ${start}-${end} 已完全存在，无法生成`, 'error')
+      } else {
+        const uniqueConflicts = [...new Set(conflictIds)]
+        if (uniqueConflicts.length <= 10) {
+          toast(`号码段冲突：工号 ${uniqueConflicts.join(', ')} 已存在`, 'error')
+        } else {
+          toast(`号码段冲突：${uniqueConflicts.length} 个工号已存在，请调整号码范围`, 'error')
+        }
+      }
       return
     }
     
@@ -169,16 +186,16 @@ function ParticipantsTab() {
     setRangeEnd('')
   }
 
-  const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    processExcelFile(file)
+    await processCSVFile(file)
     e.target.value = ''
   }
 
-  const processExcelFile = async (file: File) => {
-    if (!file.name.endsWith('.xlsx')) {
-      toast('仅支持 .xlsx 格式的 Excel 文件', 'error')
+  const processCSVFile = async (file: File) => {
+    if (!file.name.endsWith('.csv') && !file.name.endsWith('.txt')) {
+      toast('仅支持 .csv 或 .txt 格式的文件', 'error')
       return
     }
     
@@ -188,22 +205,26 @@ function ParticipantsTab() {
     }
 
     try {
-      const arrayBuffer = await file.arrayBuffer()
-      const workbook = XLSX.read(arrayBuffer, { type: 'array' })
-      const sheetName = workbook.SheetNames[0]
-      const worksheet = workbook.Sheets[sheetName]
-      const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+      const text = await readFileWithEncoding(file)
+      console.log('读取的文件内容:', text.substring(0, 200))
+      
+      const parsedData = Papa.parse(text, {
+        header: true,
+        skipEmptyLines: true,
+      })
+      
+      console.log('解析结果:', parsedData)
 
       const imported: Omit<Participant, 'id' | 'createdAt'>[] = []
       const duplicates: string[] = []
       const existingIds = new Set(store.participants.map(p => p.employeeId))
       const existingNames = new Set(store.participants.map(p => p.name))
 
-      for (const row of data as Record<string, string>[]) {
+      for (const row of parsedData.data as Record<string, string>[]) {
         const eName = row['姓名'] || row['name'] || row['Name'] || ''
         const eId = row['工号'] || row['employeeId'] || row['ID'] || row['id'] || ''
         const eDept = row['部门'] || row['department'] || row['Department'] || ''
-
+        
         if (!eName.trim()) continue
 
         const finalEmployeeId = eId.trim() || String(store.participants.length + imported.length + 1).padStart(3, '0')
@@ -238,8 +259,59 @@ function ParticipantsTab() {
         toast('未找到有效数据，请检查文件格式', 'error')
       }
     } catch (error) {
-      toast('文件解析失败，请确保是有效的 Excel 文件', 'error')
+      console.error('文件导入失败:', error)
+      toast('文件解析失败，请检查文件格式', 'error')
     }
+  }
+
+  const readFileWithEncoding = async (file: File): Promise<string> => {
+    const encodings = ['UTF-8', 'GBK', 'GB2312', 'Big5', 'UTF-16LE', 'UTF-16BE']
+    
+    for (const encoding of encodings) {
+      try {
+        const text = await readFileAsText(file, encoding)
+        if (isValidCSVContent(text)) {
+          console.log(`成功使用 ${encoding} 编码读取文件`)
+          return text
+        }
+      } catch (error) {
+        continue
+      }
+    }
+    
+    throw new Error('无法识别文件编码')
+  }
+
+  const readFileAsText = (file: File, encoding: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = () => reject(new Error('文件读取失败'))
+      reader.readAsText(file, encoding)
+    })
+  }
+
+  const isValidCSVContent = (text: string): boolean => {
+    const lines = text.split('\n').filter(line => line.trim())
+    if (lines.length < 2) return false
+    
+    const header = lines[0]
+    const hasChineseColumns = header.includes('姓名') || header.includes('工号') || header.includes('部门')
+    const hasEnglishColumns = header.includes('name') || header.includes('employeeId') || header.includes('department')
+    
+    if (!hasChineseColumns && !hasEnglishColumns) return false
+    
+    const dataLines = lines.slice(1)
+    let hasValidData = false
+    for (const line of dataLines) {
+      const columns = line.split(',')
+      if (columns.length >= 2) {
+        hasValidData = true
+        break
+      }
+    }
+    
+    return hasValidData
   }
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -257,34 +329,13 @@ function ParticipantsTab() {
     setIsDragging(false)
     const file = e.dataTransfer.files?.[0]
     if (file) {
-      processExcelFile(file)
+      processCSVFile(file)
     }
   }
 
   const downloadTemplate = () => {
-    const data = [
-      { '工号': '001', '姓名': '张三', '部门': '技术部' },
-      { '工号': '002', '姓名': '李四', '部门': '销售部' },
-      { '工号': '003', '姓名': '王五', '部门': '人事部' },
-    ]
-    
-    const worksheet = XLSX.utils.json_to_sheet(data)
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, '参与者模板')
-    
-    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
-    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-    
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = '参与者模板.xlsx'
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-    
-    toast('模板已下载 (Excel 格式)')
+    downloadFile('\uFEFF工号,姓名,部门\n001,张三,技术部\n002,李四,销售部\n003,王五,人事部', '参与者模板.csv')
+    toast('模板已下载 (可用 Excel 打开)')
   }
 
   const handleUpdateParticipant = () => {
@@ -295,18 +346,25 @@ function ParticipantsTab() {
     }
     
     const conflictParticipant = store.participants.find(p => 
-      p.id !== editingParticipant.id && 
-      (p.employeeId === editingParticipant.employeeId || p.name === editingParticipant.name.trim())
+      p.id !== editingParticipant.id && (
+        p.employeeId === editingParticipant.employeeId || 
+        p.name === editingParticipant.name.trim()
+      )
     )
     
     if (conflictParticipant) {
-      const conflictField = conflictParticipant.employeeId === editingParticipant.employeeId ? '工号' : '姓名'
-      toast(`修改失败：${conflictField} 与参与者 "${conflictParticipant.name}" 冲突`, 'error')
+      if (conflictParticipant.employeeId === editingParticipant.employeeId && conflictParticipant.name === editingParticipant.name.trim()) {
+        toast('修改失败：工号和姓名与现有参与者冲突', 'error')
+      } else if (conflictParticipant.employeeId === editingParticipant.employeeId) {
+        toast(`修改失败：工号 "${editingParticipant.employeeId}" 已被 "${conflictParticipant.name}" 使用`, 'error')
+      } else {
+        toast(`修改失败：姓名 "${editingParticipant.name.trim()}" 已存在`, 'error')
+      }
       return
     }
     
     store.updateParticipant(editingParticipant.id, {
-      name: editingParticipant.name,
+      name: editingParticipant.name.trim(),
       employeeId: editingParticipant.employeeId,
       department: editingParticipant.department
     })
@@ -391,7 +449,7 @@ function ParticipantsTab() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".xlsx"
+              accept=".csv,.txt"
               onChange={handleFileImport}
               className="hidden"
             />
@@ -407,12 +465,12 @@ function ParticipantsTab() {
                   : 'border-border hover:border-primary/50 hover:bg-accent/30'
               }`}
             >
-              <FileSpreadsheet className={`mx-auto mb-3 transition-colors ${isDragging ? 'text-primary' : 'text-muted-foreground'}`} size={32} />
+              <Upload className={`mx-auto mb-3 transition-colors ${isDragging ? 'text-primary' : 'text-muted-foreground'}`} size={32} />
               <p className="text-sm font-medium text-foreground mb-1">
-                {isDragging ? '释放文件上传' : '点击或拖拽上传 Excel 文件'}
+                {isDragging ? '释放文件上传' : '点击或拖拽上传 CSV 文件'}
               </p>
               <p className="text-xs text-muted-foreground">
-                仅支持 .xlsx 格式，最大 10MB，需包含"姓名"列
+                仅支持 .csv 或 .txt 格式，最大 10MB，需包含"姓名"列
               </p>
             </div>
             <button
@@ -420,7 +478,7 @@ function ParticipantsTab() {
               className="flex items-center gap-2 text-sm text-primary hover:underline"
             >
               <Download size={14} />
-              下载 Excel 模板
+              下载 CSV 模板 (可用 Excel 打开)
             </button>
           </div>
         )}
@@ -1064,33 +1122,17 @@ function DataManagementTab() {
       toast('暂无中奖数据', 'error')
       return
     }
-    
-    const data = store.winners.map(w => ({
+    const csv = Papa.unparse(store.winners.map(w => ({
       '奖项': store.prizes.find(p => p.id === w.prizeId)?.name || '未知',
       '奖品': store.prizes.find(p => p.id === w.prizeId)?.prizeName || '未知',
       '工号': w.participant.employeeId,
       '姓名': w.participant.name,
       '部门': w.participant.department || '',
       '中奖时间': new Date(w.wonAt).toLocaleString(),
-    }))
-    
-    const worksheet = XLSX.utils.json_to_sheet(data)
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, '中奖名单')
-    
-    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
-    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-    
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `中奖名单-${new Date().toISOString().slice(0, 10)}.xlsx`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-    
-    toast('中奖名单已导出 (Excel 格式)')
+    })))
+    // Add BOM for Excel compatibility
+    downloadFile('\uFEFF' + csv, `中奖名单-${new Date().toISOString().slice(0, 10)}.csv`)
+    toast('中奖名单已导出 (可用 Office 打开)')
   }
 
   const handleImportClick = () => {
@@ -1143,9 +1185,9 @@ function DataManagementTab() {
             onClick={handleExportWinners}
             className="p-4 rounded-xl bg-muted hover:bg-accent transition-colors text-left group"
           >
-            <FileSpreadsheet className="mb-2 text-primary" size={24} />
+            <Download className="mb-2 text-primary" size={24} />
             <p className="font-bold text-foreground">导出中奖名单</p>
-            <p className="text-xs text-muted-foreground mt-1">导出 Excel 表格文件</p>
+            <p className="text-xs text-muted-foreground mt-1">导出 CSV 表格文件，可用 Office Excel 打开</p>
           </button>
         </div>
       </div>
