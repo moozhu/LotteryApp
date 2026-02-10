@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react'
 
-type ShapeType = 'circle' | 'triangle' | 'diamond'
+type ShapeType = 'circle' | 'triangle' | 'diamond' | 'rectangle'
 
 interface ShapeParticle {
   x: number
@@ -21,6 +21,25 @@ interface ShapeFirework {
   particles: ShapeParticle[]
   x: number
   y: number
+}
+
+interface ConfettiParticle {
+  x: number
+  y: number
+  vx: number
+  vy: number
+  rotation: number
+  rotationSpeed: number
+  scale: number
+  alpha: number
+  life: number
+  ttl: number
+  color: string
+  shape: ShapeType
+  size: number
+  drag: number
+  gravity: number
+  wind: number
 }
 
 interface FloatingParticle {
@@ -60,24 +79,30 @@ interface ShapeFireworksProps {
   trigger?: boolean
   onComplete?: () => void
   auto?: boolean
+  enableBackground?: boolean
+  burstPoints?: Array<{ x: number; y: number }>
 }
 
-export default function ShapeFireworks({ trigger, onComplete, auto = true }: ShapeFireworksProps) {
+const VIBRANT_COLORS = [
+  '#FF3B30', // Red
+  '#FF9500', // Orange
+  '#FFCC00', // Yellow
+  '#4CD964', // Green
+  '#5AC8FA', // Light Blue
+  '#007AFF', // Blue
+  '#5856D6', // Purple
+  '#FF2D55', // Pink
+]
+
+const SHAPES: ShapeType[] = ['circle', 'triangle', 'diamond', 'rectangle']
+
+export default function ShapeFireworks({ trigger, onComplete, auto = true, enableBackground = true, burstPoints }: ShapeFireworksProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fireworksRef = useRef<ShapeFirework[]>([])
+  const confettiRef = useRef<ConfettiParticle[]>([])
   const animationRef = useRef<number>(0)
   const triggeredRef = useRef(false)
   const autoRef = useRef(true)
-
-  const colors = [
-    '#F6C69A',
-    '#F2B6A0',
-    '#EBC3A9',
-    '#E7BFA0',
-    '#F0C4B3',
-  ]
-
-  const shapes: ShapeType[] = ['circle', 'triangle', 'diamond']
 
   const drawShape = (ctx: CanvasRenderingContext2D, shape: ShapeType, x: number, y: number, size: number) => {
     ctx.beginPath()
@@ -99,10 +124,15 @@ export default function ShapeFireworks({ trigger, onComplete, auto = true }: Sha
         ctx.lineTo(x - size * 0.5, y)
         ctx.closePath()
         break
+      case 'rectangle':
+        // Draw a ribbon/confetti strip
+        ctx.rect(x - size * 0.4, y - size * 0.6, size * 0.8, size * 1.2)
+        break
     }
     
     ctx.fill()
-    ctx.stroke()
+    // Optional stroke for better visibility
+    // ctx.stroke() 
   }
 
   const drawGlow = (ctx: CanvasRenderingContext2D, x: number, y: number, color: string, strength: number) => {
@@ -116,15 +146,15 @@ export default function ShapeFireworks({ trigger, onComplete, auto = true }: Sha
   }
 
   const createFirework = useCallback((x: number, y: number) => {
-    const particleCount = 8 + Math.floor(Math.random() * 6)
-    const shape = shapes[Math.floor(Math.random() * shapes.length)]
-    const color = colors[Math.floor(Math.random() * colors.length)]
+    const particleCount = 12 + Math.floor(Math.random() * 8)
+    const shape = SHAPES[Math.floor(Math.random() * SHAPES.length)]
+    const color = VIBRANT_COLORS[Math.floor(Math.random() * VIBRANT_COLORS.length)]
     
     const particles: ShapeParticle[] = []
     
     for (let i = 0; i < particleCount; i++) {
       const angle = (Math.PI * 2 * i) / particleCount + Math.random() * 0.2
-      const velocity = Math.random() * 1.8 + 1.2
+      const velocity = Math.random() * 2.5 + 1.5
       
       particles.push({
         x,
@@ -132,21 +162,58 @@ export default function ShapeFireworks({ trigger, onComplete, auto = true }: Sha
         vx: Math.cos(angle) * velocity,
         vy: Math.sin(angle) * velocity,
         rotation: Math.random() * Math.PI * 2,
-        rotationSpeed: (Math.random() - 0.5) * 0.06,
-        scale: Math.random() * 0.35 + 0.7,
+        rotationSpeed: (Math.random() - 0.5) * 0.2,
+        scale: Math.random() * 0.4 + 0.8,
         alpha: 1,
-        decay: Math.random() * 0.018 + 0.012,
+        decay: Math.random() * 0.015 + 0.008,
         color,
         shape,
-        size: Math.random() * 6 + 6,
+        size: Math.random() * 8 + 6,
       })
     }
 
     fireworksRef.current.push({ particles, x, y })
-  }, [colors, shapes])
+  }, [])
+
+  const createConfettiBurst = useCallback((x: number, y: number, count: number) => {
+    const particles: ConfettiParticle[] = []
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2
+      const speed = Math.random() * 6 + 3
+      const ttl = 2000 + Math.random() * 700
+      const shape = SHAPES[Math.floor(Math.random() * SHAPES.length)]
+      const color = VIBRANT_COLORS[Math.floor(Math.random() * VIBRANT_COLORS.length)]
+      const size = Math.random() * 10 + 6
+      const drag = 0.985 - Math.random() * 0.02
+      const gravity = 0.22 + Math.random() * 0.12
+      const wind = (Math.random() - 0.5) * 0.08
+      particles.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        rotation: Math.random() * Math.PI * 2,
+        rotationSpeed: (Math.random() - 0.5) * 0.3,
+        scale: Math.random() * 0.5 + 0.7,
+        alpha: 1,
+        life: ttl,
+        ttl,
+        color,
+        shape,
+        size,
+        drag,
+        gravity,
+        wind,
+      })
+    }
+    confettiRef.current = confettiRef.current.concat(particles)
+  }, [])
 
   useEffect(() => {
     autoRef.current = auto
+    if (!trigger) {
+      triggeredRef.current = false
+    }
     if (trigger && !triggeredRef.current) {
       triggeredRef.current = true
       
@@ -154,18 +221,21 @@ export default function ShapeFireworks({ trigger, onComplete, auto = true }: Sha
       if (canvas) {
         const width = canvas.width / (window.devicePixelRatio || 1)
         const height = canvas.height / (window.devicePixelRatio || 1)
-        
-        const count = 4 + Math.floor(Math.random() * 2)
-        for (let i = 0; i < count; i++) {
-          setTimeout(() => {
-            const x = Math.random() * width * 0.6 + width * 0.2
-            const y = Math.random() * height * 0.4 + height * 0.15
-            createFirework(x, y)
-          }, i * 260 + Math.random() * 180)
-        }
+
+        const points = burstPoints && burstPoints.length > 0
+          ? burstPoints
+          : [{ x: width * 0.5, y: height * 0.45 }]
+
+        const totalCount = 160 + Math.floor(Math.random() * 40)
+        const perBurst = Math.max(90, Math.floor(totalCount / points.length))
+        points.forEach(point => {
+          const x = Math.max(0, Math.min(width, point.x))
+          const y = Math.max(0, Math.min(height, point.y))
+          createConfettiBurst(x, y, perBurst)
+        })
       }
     }
-  }, [trigger, createFirework, auto])
+  }, [trigger, createConfettiBurst, auto, burstPoints])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -214,44 +284,46 @@ export default function ShapeFireworks({ trigger, onComplete, auto = true }: Sha
       'rgba(242, 202, 176, 0.62)',
     ]
 
-    for (let i = 0; i < floatingCount; i++) {
-      floatingParticles.push({
-        x: Math.random() * width,
-        y: Math.random() * height,
-        vx: (Math.random() - 0.5) * 0.18,
-        vy: -Math.random() * 0.3 - 0.06,
-        size: Math.random() * 4.2 + 3.2,
-        phase: Math.random() * Math.PI * 2,
-        phaseSpeed: Math.random() * 0.012 + 0.005,
-        alpha: Math.random() * 0.45 + 0.35,
-        color: floatingColors[Math.floor(Math.random() * floatingColors.length)],
-      })
-    }
+    if (enableBackground) {
+      for (let i = 0; i < floatingCount; i++) {
+        floatingParticles.push({
+          x: Math.random() * width,
+          y: Math.random() * height,
+          vx: (Math.random() - 0.5) * 0.18,
+          vy: -Math.random() * 0.3 - 0.06,
+          size: Math.random() * 4.2 + 3.2,
+          phase: Math.random() * Math.PI * 2,
+          phaseSpeed: Math.random() * 0.012 + 0.005,
+          alpha: Math.random() * 0.45 + 0.35,
+          color: floatingColors[Math.floor(Math.random() * floatingColors.length)],
+        })
+      }
 
-    for (let i = 0; i < driftingCount; i++) {
-      driftingParticles.push({
-        x: Math.random() * width,
-        y: height + Math.random() * height * 0.4,
-        vx: (Math.random() - 0.5) * 0.264,
-        vy: -Math.random() * 0.66 - 0.192,
-        size: Math.random() * 3.8 + 2.2,
-        alpha: Math.random() * 0.38 + 0.3,
-        color: driftingColors[Math.floor(Math.random() * driftingColors.length)],
-      })
-    }
+      for (let i = 0; i < driftingCount; i++) {
+        driftingParticles.push({
+          x: Math.random() * width,
+          y: height + Math.random() * height * 0.4,
+          vx: (Math.random() - 0.5) * 0.264,
+          vy: -Math.random() * 0.66 - 0.192,
+          size: Math.random() * 3.8 + 2.2,
+          alpha: Math.random() * 0.38 + 0.3,
+          color: driftingColors[Math.floor(Math.random() * driftingColors.length)],
+        })
+      }
 
-    const blobCount = 6
-    for (let i = 0; i < blobCount; i++) {
-      softBlobs.push({
-        x: Math.random() * width,
-        y: Math.random() * height,
-        radius: Math.random() * 340 + 260,
-        vx: (Math.random() - 0.5) * 0.16,
-        vy: (Math.random() - 0.5) * 0.14,
-        phase: Math.random() * Math.PI * 2,
-        phaseSpeed: Math.random() * 0.008 + 0.0045,
-        color: blobColors[Math.floor(Math.random() * blobColors.length)],
-      })
+      const blobCount = 6
+      for (let i = 0; i < blobCount; i++) {
+        softBlobs.push({
+          x: Math.random() * width,
+          y: Math.random() * height,
+          radius: Math.random() * 340 + 260,
+          vx: (Math.random() - 0.5) * 0.16,
+          vy: (Math.random() - 0.5) * 0.14,
+          phase: Math.random() * Math.PI * 2,
+          phaseSpeed: Math.random() * 0.008 + 0.0045,
+          color: blobColors[Math.floor(Math.random() * blobColors.length)],
+        })
+      }
     }
 
     const animate = (currentTime: number) => {
@@ -327,6 +399,7 @@ export default function ShapeFireworks({ trigger, onComplete, auto = true }: Sha
       ctx.restore()
 
       let hasActiveFireworks = false
+      let hasActiveConfetti = false
 
       fireworksRef.current = fireworksRef.current.filter((firework) => {
         drawGlow(ctx, firework.x, firework.y, 'rgb(246, 198, 154)', 80)
@@ -366,7 +439,38 @@ export default function ShapeFireworks({ trigger, onComplete, auto = true }: Sha
         return firework.particles.length > 0
       })
 
-      if (!hasActiveFireworks && triggeredRef.current) {
+      confettiRef.current = confettiRef.current.filter((particle) => {
+        const t = deltaTime / 16
+        const wind = particle.wind + Math.sin((currentTime + particle.x) * 0.002) * 0.05
+        particle.vx += wind * t
+        particle.vy += particle.gravity * t
+        particle.vx *= particle.drag
+        particle.vy *= particle.drag
+        particle.x += particle.vx * t
+        particle.y += particle.vy * t
+        particle.rotation += particle.rotationSpeed * t
+        particle.life -= deltaTime
+        particle.alpha = Math.max(0, particle.life / particle.ttl)
+
+        if (particle.life <= 0 || particle.alpha <= 0) return false
+
+        hasActiveConfetti = true
+
+        ctx.save()
+        ctx.translate(particle.x, particle.y)
+        ctx.rotate(particle.rotation)
+        ctx.scale(particle.scale, particle.scale)
+        ctx.globalAlpha = particle.alpha
+        ctx.fillStyle = particle.color
+        ctx.shadowBlur = 6
+        ctx.shadowColor = particle.color
+        drawShape(ctx, particle.shape, 0, 0, particle.size)
+        ctx.restore()
+
+        return true
+      })
+
+      if (!hasActiveFireworks && !hasActiveConfetti && triggeredRef.current) {
         inactiveTime += deltaTime
         if (inactiveTime > 800) {
           triggeredRef.current = false
@@ -393,7 +497,7 @@ export default function ShapeFireworks({ trigger, onComplete, auto = true }: Sha
         autoTime = 0
       }
 
-      if (fireworksRef.current.length > 0 || triggeredRef.current || autoRef.current) {
+      if (fireworksRef.current.length > 0 || confettiRef.current.length > 0 || triggeredRef.current || autoRef.current) {
         animationRef.current = requestAnimationFrame(animate)
       }
     }
@@ -412,9 +516,9 @@ export default function ShapeFireworks({ trigger, onComplete, auto = true }: Sha
       window.removeEventListener('resize', handleResize)
       cancelAnimationFrame(animationRef.current)
     }
-  }, [onComplete, createFirework])
+  }, [onComplete, createFirework, trigger, auto])
 
-  if (!trigger && fireworksRef.current.length === 0 && !auto) return null
+  if (!trigger && fireworksRef.current.length === 0 && confettiRef.current.length === 0 && !auto) return null
 
   return (
     <canvas

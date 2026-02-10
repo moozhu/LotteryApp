@@ -5,6 +5,8 @@ import { PRIZE_ICONS } from '@/types'
 import type { Participant, DrawStatus } from '@/types'
 import { ArrowLeft } from 'lucide-react'
 import { soundManager } from '@/lib/sound'
+import BackgroundEffects from '@/components/ui/BackgroundEffects'
+import { computeWinnerLayout } from '@/lib/winnerLayout'
 
 export default function DrawPage() {
   const { prizeId } = useParams<{ prizeId: string }>()
@@ -19,11 +21,21 @@ export default function DrawPage() {
 
   const [status, setStatus] = useState<DrawStatus>('idle')
   const [currentWinners, setCurrentWinners] = useState<Participant[]>([])
+  const [preDrawCount, setPreDrawCount] = useState(0)
   const [rotation, setRotation] = useState(0)
   const [speed, setSpeed] = useState(0.5)
+  const [showAllWinners, setShowAllWinners] = useState(false)
+  const [cloudSize, setCloudSize] = useState({ width: 0, height: 0 })
+  const [flyItems, setFlyItems] = useState<Array<{ id: string; name: string; employeeId: string; fromX: number; fromY: number; toX: number; toY: number; size: number; index: number }>>([])
+  const [transitioningIds, setTransitioningIds] = useState<Set<string>>(new Set())
   
   const animRef = useRef<number>(0)
   const containerRef = useRef<HTMLDivElement>(null)
+  const winnersListRef = useRef<HTMLDivElement>(null)
+  const cloudItemRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const listItemRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const flyItemRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const lastTransitionKeyRef = useRef('')
 
   const availableParticipants = store.getAvailableParticipants()
   const drawCount = store.settings.drawMode === 'single' ? 1 : remaining
@@ -42,6 +54,18 @@ export default function DrawPage() {
       setDisplayParticipants(availableParticipants)
     }
   }, [availableParticipants, status])
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const observer = new ResizeObserver(entries => {
+      const rect = entries[0]?.contentRect
+      if (!rect) return
+      setCloudSize({ width: rect.width, height: rect.height })
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
 
   const showWarning = availableParticipants.length < remaining && status === 'idle'
 
@@ -78,6 +102,15 @@ export default function DrawPage() {
     }
   }, [speed, status])
 
+  const cloudLayout = useMemo(() => {
+    const width = cloudSize.width || containerRef.current?.clientWidth || window.innerWidth
+    return computeWinnerLayout(currentWinners.map(w => w.id), width)
+  }, [currentWinners, cloudSize.width])
+
+  const cloudLayoutMap = useMemo(() => {
+    return new Map(cloudLayout.items.map(item => [item.id, item]))
+  }, [cloudLayout.items])
+
   const getCloudItemStyle = useCallback((index: number, total: number, isWinner: boolean) => {
     // Hide winners when finished (they move to top list)
     if (status === 'finished' && isWinner) {
@@ -86,18 +119,6 @@ export default function DrawPage() {
         opacity: 0,
         zIndex: 0,
         transition: 'all 0.5s ease-in'
-      }
-    }
-
-    // If highlighting and isWinner, use special transform
-    if (status === 'highlighting' && isWinner) {
-      return {
-        transform: 'translate(-50%, -50%) scale(2)',
-        opacity: 1,
-        zIndex: 100,
-        fontSize: '24px',
-        fontWeight: 'bold',
-        transition: 'all 0.5s ease-out'
       }
     }
 
@@ -113,17 +134,29 @@ export default function DrawPage() {
     const y = Math.cos(phi) * responsiveRadius * 0.6
     const z = Math.sin(theta) * Math.sin(phi) * responsiveRadius
 
-    const scale = (z + responsiveRadius) / (2 * responsiveRadius) * 0.6 + 0.4
-    const opacity = (z + responsiveRadius) / (2 * responsiveRadius) * 0.7 + 0.3
+    const baseScale = (z + responsiveRadius) / (2 * responsiveRadius) * 0.6 + 0.4
+    const baseOpacity = (z + responsiveRadius) / (2 * responsiveRadius) * 0.7 + 0.3
+
+    if (status === 'highlighting' && isWinner) {
+      const scale = Math.min(2.2, baseScale * 1.6)
+      return {
+        transform: `translate(-50%, -50%) translate3d(${x}px, ${y}px, ${z}px) scale(${scale})`,
+        opacity: 1,
+        zIndex: 200,
+        fontSize: `${Math.max(16, 16 * scale)}px`,
+        fontWeight: 'bold',
+        transition: 'all 0.5s ease-out'
+      }
+    }
 
     return {
-      transform: `translate(-50%, -50%) translate3d(${x}px, ${y}px, ${z}px) scale(${scale})`,
-      opacity: status === 'highlighting' ? 0.1 : opacity, // Dim others when highlighting
+      transform: `translate(-50%, -50%) translate3d(${x}px, ${y}px, ${z}px) scale(${baseScale})`,
+      opacity: status === 'highlighting' ? 0.1 : baseOpacity,
       zIndex: Math.round(z + responsiveRadius),
-      fontSize: `${Math.max(12, 14 * scale)}px`,
+      fontSize: `${Math.max(12, 14 * baseScale)}px`,
       transition: status === 'highlighting' ? 'opacity 0.5s ease-out' : 'none'
     }
-  }, [rotation, status])
+  }, [rotation, status, displayParticipants, cloudLayoutMap, cloudSize.width, cloudSize.height])
 
   const handleDraw = () => {
     // Allow drawing if idle OR finished (for continuous draw), as long as prizes remain
@@ -131,11 +164,13 @@ export default function DrawPage() {
 
     // 1. Prepare
     setStatus('preparing')
-    setCurrentWinners([])
-
+    setPreDrawCount(prizeWinners.length)
+    
     // 2. Draw (Store updates immediately)
     const winners = store.drawWinners(prizeId!, drawCount)
     if (winners.length === 0) return
+
+    setCurrentWinners(winners)
 
     // 3. Inject winners into displayParticipants if they are not present
     // This ensures they are visible in the cloud for highlighting
@@ -145,18 +180,17 @@ export default function DrawPage() {
       // If we have more than 80, we slice.
       // But we must ensure winners are in the slice.
       
-      const winnerIds = new Set(winners.map(w => w.participantId))
-      const winnersInDisplay = newDisplay.filter(p => winnerIds.has(p.id))
-      const missingWinners = winners.filter(w => !newDisplay.find(p => p.id === w.participantId))
+      const winnerIds = new Set(winners.map(w => w.id))
+      // Filter out winners that are already in the display list
+      const missingParticipants = winners.filter(w => !newDisplay.find(p => p && p.id === w.id))
       
       let finalDisplay = newDisplay
       
-      if (missingWinners.length > 0) {
+      if (missingParticipants.length > 0) {
         // We need to add them. 
         // If list is small, just push.
         // If list is large (sliced), replace items or prepend.
         // Let's just prepend them to ensure they are in the first N items
-        const missingParticipants = missingWinners.map(w => w.participant)
         finalDisplay = [...missingParticipants, ...newDisplay]
       }
       
@@ -185,7 +219,6 @@ export default function DrawPage() {
     setTimeout(() => {
       setSpeed(0)
       setStatus('highlighting')
-      setCurrentWinners(winners)
       soundManager.playWin()
       
       // Haptic feedback if available
@@ -193,21 +226,93 @@ export default function DrawPage() {
         navigator.vibrate([100, 50, 100])
       }
       
-      // Phase 4: Move to Top List (after 2s)
-      setTimeout(() => {
-        setStatus('finished')
-        // At this point, the 'finished' status will render the top list
-        // and we can optionally clear them from cloud or keep them
-      }, 2000)
     }, 3500)
   }
 
   const handleContinue = () => {
     // Reset speed for next draw
     setSpeed(0.5)
-    // Trigger draw immediately
-    handleDraw()
+    // Trigger draw immediately but allow state to settle
+    setTimeout(() => {
+      handleDraw()
+    }, 100)
   }
+
+  useEffect(() => {
+    if (status !== 'highlighting' || currentWinners.length === 0) return
+    const key = `${prizeId}-${currentWinners.map(w => w.id).join('|')}`
+    if (lastTransitionKeyRef.current === key) return
+    lastTransitionKeyRef.current = key
+
+    const items: Array<{ id: string; name: string; employeeId: string; fromX: number; fromY: number; toX: number; toY: number; size: number; index: number }> = []
+    currentWinners.forEach((w, index) => {
+      const fromEl = cloudItemRefs.current.get(w.id)
+      const toEl = listItemRefs.current.get(w.id)
+      if (!toEl) return
+      const fromRect = fromEl?.getBoundingClientRect()
+      const toRect = toEl.getBoundingClientRect()
+      const cloudRect = containerRef.current?.getBoundingClientRect()
+      const listRect = winnersListRef.current?.getBoundingClientRect()
+      const layoutItem = cloudLayoutMap.get(w.id)
+      const fromRectValid = fromRect && fromRect.width > 0 && fromRect.height > 0
+      const fromX = fromRectValid
+        ? fromRect.left + fromRect.width / 2
+        : layoutItem && cloudRect
+          ? cloudRect.left + layoutItem.x
+          : (cloudRect ? cloudRect.left + cloudRect.width / 2 : window.innerWidth / 2)
+      const fromY = fromRectValid
+        ? fromRect.top + fromRect.height / 2
+        : layoutItem && cloudRect
+          ? cloudRect.top + layoutItem.y
+          : (cloudRect ? cloudRect.top + cloudRect.height / 2 : window.innerHeight / 2)
+      const toX = toRect ? toRect.left + toRect.width / 2 : (listRect ? listRect.left + listRect.width / 2 : window.innerWidth / 2)
+      const toY = toRect ? toRect.top + toRect.height / 2 : (listRect ? listRect.top + listRect.height / 2 : window.innerHeight / 2)
+      items.push({
+        id: w.id,
+        name: w.name,
+        employeeId: w.employeeId,
+        fromX,
+        fromY,
+        toX,
+        toY,
+        size: toRect ? Math.max(60, Math.min(100, toRect.width)) : 80,
+        index,
+      })
+    })
+
+    if (items.length > 0) {
+      setFlyItems(items)
+      setTransitioningIds(new Set(items.map(item => item.id)))
+    }
+  }, [status, currentWinners, prizeId, cloudLayoutMap])
+
+  useEffect(() => {
+    if (flyItems.length === 0) return
+    const remaining = new Set(flyItems.map(item => item.id))
+    flyItems.forEach(item => {
+      const el = flyItemRefs.current.get(item.id)
+      if (!el) return
+      const animation = el.animate(
+        [
+          { transform: `translate(${item.fromX}px, ${item.fromY}px) scale(1)`, opacity: 1 },
+          { transform: `translate(${item.toX}px, ${item.toY}px) scale(0.9)`, opacity: 1 }
+        ],
+        { duration: 1200, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' }
+      )
+      animation.onfinish = () => {
+        setTransitioningIds(prev => {
+          const next = new Set(prev)
+          next.delete(item.id)
+          return next
+        })
+        remaining.delete(item.id)
+        if (remaining.size === 0) {
+          setFlyItems([])
+          setStatus('finished')
+        }
+      }
+    })
+  }, [flyItems])
 
   if (!prize) {
     return (
@@ -222,6 +327,42 @@ export default function DrawPage() {
 
   return (
     <div className="h-screen flex flex-col bg-gradient-bg relative overflow-hidden">
+      <BackgroundEffects 
+        showFireworks={status === 'highlighting' || status === 'finished'}
+        auto={false}
+        enableBackground={false}
+        burstPoints={(() => {
+          if (status !== 'highlighting') return undefined
+          const rect = containerRef.current?.getBoundingClientRect()
+          const width = rect?.width || window.innerWidth
+          const height = rect?.height || window.innerHeight
+          const left = (rect?.left || 0) + width * 0.3
+          const right = (rect?.left || 0) + width * 0.7
+          const y = (rect?.top || 0) + height * 0.45
+          return [{ x: left, y }, { x: right, y }]
+        })()}
+      />
+      {flyItems.length > 0 && (
+        <div className="pointer-events-none fixed inset-0 z-30">
+          {flyItems.map(item => (
+            <div
+              key={item.id}
+              ref={el => {
+                if (el) flyItemRefs.current.set(item.id, el)
+                else flyItemRefs.current.delete(item.id)
+              }}
+              className="absolute px-3 py-3 rounded-xl bg-gradient-to-r from-yellow-400 to-orange-500 text-white flex items-center justify-center gap-2 shadow-lg"
+              style={{
+                transform: `translate(${item.fromX}px, ${item.fromY}px) scale(1)`,
+                opacity: 1,
+              }}
+            >
+              <span className="text-lg font-bold truncate max-w-[80px]">{item.name}</span>
+              <span className="opacity-90 text-xs border-l border-white/30 pl-2">{item.employeeId}</span>
+            </div>
+          ))}
+        </div>
+      )}
       
       {/* Adaptive Title Status Bar */}
       <header className="flex-none relative z-10 flex items-center justify-between px-4 sm:px-8 py-4 sm:py-6 bg-background/10 backdrop-blur-[2px]">
@@ -261,43 +402,88 @@ export default function DrawPage() {
       </header>
 
       {/* Current Winners List (Above Cloud) */}
-      <div className="flex-none relative z-10 flex justify-center py-4 min-h-[100px]">
+      <div className="flex-none relative z-10 flex flex-col items-center justify-center py-4 min-h-[100px]">
         {/* Always show winners if there are any */}
         {(status === 'finished' || status === 'idle' || status === 'preparing' || status === 'drawing' || status === 'slowing' || status === 'highlighting') && prizeWinners.length > 0 && (
-          <div className="flex flex-wrap justify-center gap-4 px-4 max-w-[1400px] mx-auto max-h-[160px] overflow-y-auto custom-scrollbar">
-            {prizeWinners.map((w, index) => {
-              // Check if this winner is from the current draw batch
-              // We identify "new" winners by checking if they are in currentWinners state
-              // AND we are in 'finished' state (meaning the reveal animation is happening)
-              const isNew = status === 'finished' && currentWinners.some(cw => cw.id === w.participantId)
-              
-              // If we are NOT finished yet, and this person is a "new" winner (in currentWinners),
-              // we should NOT show them yet in the top list (they are still in the cloud or being drawn)
-              // But wait, if we are in 'idle' (after 'finished'), everyone should be shown.
-              // If we are in 'drawing'/'slowing'/'highlighting', the new winners are being processed.
-              // So, if currentWinners contains this person, ONLY show them if status === 'finished' (or subsequent idle?)
-              // Actually, simpler logic:
-              // 1. If it's a past winner (not in currentWinners), ALWAYS show.
-              // 2. If it's a current winner (in currentWinners), ONLY show if status === 'finished' (fly-in phase) or 'idle' (after continue).
-              
-              const isCurrentBatch = currentWinners.some(cw => cw.id === w.participantId)
-              const shouldShow = !isCurrentBatch || (status === 'finished' || status === 'idle')
-              
-              if (!shouldShow) return null
+          <div ref={winnersListRef} className="flex flex-col items-center gap-2 w-full max-w-[1400px] px-4">
+            <div className={`flex flex-wrap justify-center gap-4 w-full transition-all duration-300 ease-in-out ${showAllWinners ? '' : 'overflow-hidden'}`}>
+            {(() => {
+              // Logic to filter and slice winners
+              // 1. Filter visible winners based on logic (hide current batch if not finished/idle)
+              const visibleWinners = prizeWinners.filter((w, index) => {
+                 if (!w || !w.participant) return false
+                 // Hide winners that are newly added (index >= preDrawCount) during the draw
+                 if ((status === 'preparing' || status === 'drawing' || status === 'slowing') && index >= preDrawCount) {
+                   return false
+                 }
+                 return true
+              })
 
+              // 2. Slice if not showAll
+              const displayList = showAllWinners ? visibleWinners : visibleWinners.slice(0, 16)
+              
               return (
-                <div 
-                  key={w.id}
-                  className={`bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-3 py-3 rounded-xl flex items-center justify-center gap-2 transform transition-all duration-500 hover:scale-105 min-w-[140px] ${isNew ? 'animate-fly-in' : ''}`}
-                  style={{ 
-                    animationDelay: isNew ? `${index * 100}ms` : '0ms'
-                  }}
-                >
-                  <span className="text-lg font-bold truncate max-w-[80px]">{w.participant.name}</span>
-                  <span className="opacity-90 text-xs border-l border-white/30 pl-2">{w.participant.employeeId}</span>
-                </div>
+                  <>
+                    {displayList.map((w, index) => {
+                      if (!w || !w.participant) return null
+                      const isNew = status === 'finished' && currentWinners.some(cw => cw.id === w.participantId)
+                      return (
+                        <div
+                          key={w.id}
+                          ref={el => {
+                            if (el) listItemRefs.current.set(w.participantId, el)
+                            else listItemRefs.current.delete(w.participantId)
+                          }}
+                          className={`bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-3 py-3 rounded-xl flex items-center justify-center gap-2 transform transition-all duration-500 hover:scale-105 min-w-[140px] ${isNew ? 'animate-fly-in' : ''}`}
+                          style={{
+                            animationDelay: isNew ? `${index * 100}ms` : '0ms',
+                            opacity: transitioningIds.has(w.participantId) ? 0 : 1,
+                          }}
+                        >
+                        <span className="text-lg font-bold truncate max-w-[80px]">{w.participant.name}</span>
+                        <span className="opacity-90 text-xs border-l border-white/30 pl-2">{w.participant.employeeId}</span>
+                      </div>
+                    )
+                  })}
+                </>
               )
-            })}
+            })()}
+            </div>
+            
+            {/* Show More Toggle */}
+            {(() => {
+               const visibleCount = prizeWinners.filter((w, index) => {
+                 if (!w || !w.participant) return false
+                 if ((status === 'preparing' || status === 'drawing' || status === 'slowing') && index >= preDrawCount) {
+                   return false
+                 }
+                 return true
+               }).length
+               
+               if (visibleCount > 16) {
+                 return (
+                   <div className="flex justify-center w-full mt-4">
+                     <button
+                       onClick={() => setShowAllWinners(!showAllWinners)}
+                       className="px-6 py-2 rounded-full bg-white/20 hover:bg-white/30 text-white text-sm backdrop-blur-sm transition-colors flex items-center gap-2 border border-white/10 shadow-sm"
+                     >
+                       {showAllWinners ? (
+                         <>
+                           <span>收起名单</span>
+                           <span className="text-xs opacity-70">▲</span>
+                         </>
+                       ) : (
+                         <>
+                           <span>显示更多 ({visibleCount - 16})</span>
+                           <span className="text-xs opacity-70">▼</span>
+                         </>
+                       )}
+                     </button>
+                   </div>
+                 )
+               }
+               return null
+            })()}
           </div>
         )}
       </div>
@@ -316,9 +502,13 @@ export default function DrawPage() {
                return (
                 <div
                   key={p.id}
+                  ref={el => {
+                    if (el) cloudItemRefs.current.set(p.id, el)
+                    else cloudItemRefs.current.delete(p.id)
+                  }}
                   className={`cloud-item absolute flex items-center justify-center px-4 py-2 rounded-xl font-body font-medium whitespace-nowrap transition-colors duration-300
                     ${isWinner && status === 'highlighting' 
-                      ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white shadow-[0_0_30px_rgba(255,165,0,0.6)] border-2 border-white animate-pulse-scale' 
+                      ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white shadow-[0_0_30px_rgba(255,165,0,0.6)] border-2 border-white' 
                       : 'bg-card/90 text-foreground border border-white/10 shadow-sm backdrop-blur-sm'
                     }
                   `}
