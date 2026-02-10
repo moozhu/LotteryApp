@@ -233,14 +233,23 @@ export default function DrawPage() {
           <span className="hidden sm:inline">返回</span>
         </button>
         
-        {/* Enlarged Title */}
-        <div className="flex items-center gap-3 text-foreground animate-fade-in">
-          <span className="text-3xl sm:text-4xl filter drop-shadow-md">{icon}</span>
-          <div className="flex flex-col items-center">
-            <span className="font-display font-bold text-2xl sm:text-3xl tracking-wide filter drop-shadow-sm">
+        {/* Enlarged Title - Single Row Layout */}
+        <div className="flex items-center gap-4 text-foreground animate-fade-in">
+          {prize.prizeImage ? (
+            <img 
+              src={prize.prizeImage} 
+              alt={prize.prizeName} 
+              className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-xl shadow-md border-2 border-white/20"
+            />
+          ) : (
+            <span className="text-4xl sm:text-5xl filter drop-shadow-md">{icon}</span>
+          )}
+          
+          <div className="flex flex-row items-baseline gap-3">
+            <span className="font-display font-bold text-3xl sm:text-4xl tracking-wide filter drop-shadow-sm">
               {prize.name}
             </span>
-            <span className="text-sm sm:text-base text-muted-foreground/80 font-medium">
+            <span className="text-lg sm:text-xl text-muted-foreground/90 font-medium">
               {prize.prizeName}
             </span>
           </div>
