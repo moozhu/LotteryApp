@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLotteryStore } from '@/store/lottery'
-import FireworkEffect from '@/components/ui/FireworkEffect'
-import ParticleBackground from '@/components/ui/ParticleBackground'
+import BackgroundEffects from '@/components/ui/BackgroundEffects'
 import { Users, Trophy, Settings, Maximize, RotateCcw, Sparkles, Gift, Coffee } from 'lucide-react'
 import { PRIZE_ICONS } from '@/types'
 import { WinnerListModal } from '@/components/modals/WinnerListModal'
@@ -90,8 +89,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-bg relative overflow-hidden">
-      <ParticleBackground />
-      <FireworkEffect isActive={true} />
+      <BackgroundEffects />
       {/* Radial glow behind title */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full opacity-20 pointer-events-none"
         style={{ background: 'radial-gradient(ellipse, var(--primary) 0%, transparent 70%)' }}

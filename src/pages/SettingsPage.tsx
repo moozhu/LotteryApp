@@ -8,8 +8,7 @@ import type { Participant, Prize } from '@/types'
 import { downloadFile } from '@/lib/utils'
 import { toast } from '@/components/ui/Toaster'
 import { Modal } from '@/components/ui/Modal'
-import ParticleBackground from '@/components/ui/ParticleBackground'
-import FireworkEffect from '@/components/ui/FireworkEffect'
+import BackgroundEffects from '@/components/ui/BackgroundEffects'
 import { ResetConfirmModal } from '@/components/modals/ResetConfirmModal'
 import Papa from 'papaparse'
 import {
@@ -47,8 +46,7 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-bg relative overflow-hidden">
-      <ParticleBackground />
-      <FireworkEffect isActive={true} />
+      <BackgroundEffects />
       
       {/* Header */}
       <header className="flex items-center justify-between px-4 sm:px-8 py-4 border-b border-border/50 relative z-10 bg-background/50 backdrop-blur-sm">

@@ -5,8 +5,7 @@ import { PRIZE_ICONS } from '@/types'
 import type { Participant, DrawStatus } from '@/types'
 import { ArrowLeft } from 'lucide-react'
 import confetti from 'canvas-confetti'
-import ParticleBackground from '@/components/ui/ParticleBackground'
-import FireworkEffect from '@/components/ui/FireworkEffect'
+import BackgroundEffects from '@/components/ui/BackgroundEffects'
 import { soundManager } from '@/lib/sound'
 
 export default function DrawPage() {
@@ -24,6 +23,7 @@ export default function DrawPage() {
   const [currentWinners, setCurrentWinners] = useState<Participant[]>([])
   const [rotation, setRotation] = useState(0)
   const [speed, setSpeed] = useState(0.5)
+  const [showFireworks, setShowFireworks] = useState(false)
   const animRef = useRef<number>(0)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -146,6 +146,7 @@ export default function DrawPage() {
       setStatus('finished')
       setCurrentWinners(winners)
       fireConfetti()
+      setShowFireworks(true)
       // Play win sound - layered celebratory effect
       soundManager.playWin()
     }, 3500)
@@ -169,8 +170,7 @@ export default function DrawPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-bg relative overflow-hidden">
-      <ParticleBackground />
-      <FireworkEffect isActive={true} />
+      <BackgroundEffects showFireworks={showFireworks} onFireworksComplete={() => setShowFireworks(false)} />
       {/* Top Bar */}
       <header className="relative z-10 flex items-center justify-between px-4 sm:px-8 py-4">
         <button
