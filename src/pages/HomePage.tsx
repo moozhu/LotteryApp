@@ -149,7 +149,7 @@ export default function HomePage() {
       <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 sm:px-8 py-6 sm:py-10">
         {/* Title Section */}
         <div className="text-center mb-10 sm:mb-14 animate-fade-in">
-          <h1 className="text-5xl sm:text-7xl font-display font-bold text-gradient mb-6 tracking-tight leading-tight drop-shadow-sm">
+          <h1 className="text-6xl sm:text-8xl font-display font-bold text-gradient mb-6 tracking-tight leading-tight drop-shadow-sm">
             {settings.title}
           </h1>
           <p className="text-xl sm:text-2xl text-muted-foreground font-body tracking-wide">
