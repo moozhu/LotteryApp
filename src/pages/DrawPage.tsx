@@ -264,7 +264,7 @@ export default function DrawPage() {
       <div className="flex-none relative z-10 flex justify-center py-4 min-h-[100px]">
         {/* Always show winners if there are any */}
         {(status === 'finished' || status === 'idle' || status === 'preparing' || status === 'drawing' || status === 'slowing' || status === 'highlighting') && prizeWinners.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4 px-4 max-w-[90vw] mx-auto max-h-[160px] overflow-y-auto custom-scrollbar">
+          <div className="flex flex-wrap justify-center gap-4 px-4 max-w-[1400px] mx-auto max-h-[160px] overflow-y-auto custom-scrollbar">
             {prizeWinners.map((w, index) => {
               // Check if this winner is from the current draw batch
               // We identify "new" winners by checking if they are in currentWinners state
@@ -288,12 +288,12 @@ export default function DrawPage() {
               return (
                 <div 
                   key={w.id}
-                  className={`bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-3 py-3 rounded-xl flex items-center justify-center gap-2 transform transition-all duration-500 hover:scale-105 ${isNew ? 'animate-fly-in' : ''}`}
+                  className={`bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-3 py-3 rounded-xl flex items-center justify-center gap-2 transform transition-all duration-500 hover:scale-105 min-w-[140px] ${isNew ? 'animate-fly-in' : ''}`}
                   style={{ 
                     animationDelay: isNew ? `${index * 100}ms` : '0ms'
                   }}
                 >
-                  <span className="text-lg font-bold truncate max-w-[100px]">{w.participant.name}</span>
+                  <span className="text-lg font-bold truncate max-w-[80px]">{w.participant.name}</span>
                   <span className="opacity-90 text-xs border-l border-white/30 pl-2">{w.participant.employeeId}</span>
                 </div>
               )
