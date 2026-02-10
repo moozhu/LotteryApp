@@ -104,7 +104,8 @@ export default function DrawPage() {
     const phi = Math.acos(-1 + (2 * index + 1) / total)
     const theta = Math.sqrt(total * Math.PI) * phi + (rotation * Math.PI) / 180
 
-    const radius = Math.min(450, Math.max(220, total * 9))
+    // Scale up cloud by ~30%
+    const radius = Math.min(600, Math.max(300, total * 12))
     // Adjust radius for smaller screens
     const responsiveRadius = window.innerWidth < 640 ? radius * 0.6 : radius
 
@@ -254,7 +255,7 @@ export default function DrawPage() {
       <div className="flex-none relative z-10 flex justify-center py-4 min-h-[100px]">
         {/* Always show winners if there are any */}
         {(status === 'finished' || status === 'idle' || status === 'preparing' || status === 'drawing' || status === 'slowing' || status === 'highlighting') && prizeWinners.length > 0 && (
-          <div className="flex flex-wrap justify-center gap-4 px-4 max-w-6xl mx-auto max-h-[180px] overflow-y-auto custom-scrollbar">
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4 px-4 max-w-[90vw] mx-auto max-h-[160px] overflow-y-auto custom-scrollbar">
             {prizeWinners.map((w, index) => {
               // Check if this winner is from the current draw batch
               // We identify "new" winners by checking if they are in currentWinners state
@@ -278,13 +279,13 @@ export default function DrawPage() {
               return (
                 <div 
                   key={w.id}
-                  className={`bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-6 py-3 rounded-xl shadow-lg flex items-center gap-3 transform transition-all duration-500 hover:scale-105 ${isNew ? 'animate-fly-in' : ''}`}
+                  className={`bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-3 py-3 rounded-xl flex items-center justify-center gap-2 transform transition-all duration-500 hover:scale-105 ${isNew ? 'animate-fly-in' : ''}`}
                   style={{ 
                     animationDelay: isNew ? `${index * 100}ms` : '0ms'
                   }}
                 >
-                  <span className="text-xl font-bold">{w.participant.name}</span>
-                  <span className="opacity-90 text-xs border-l border-white/30 pl-3">{w.participant.employeeId}</span>
+                  <span className="text-lg font-bold truncate max-w-[100px]">{w.participant.name}</span>
+                  <span className="opacity-90 text-xs border-l border-white/30 pl-2">{w.participant.employeeId}</span>
                 </div>
               )
             })}
@@ -327,7 +328,7 @@ export default function DrawPage() {
       </main>
 
       {/* Footer - Fixed/Sticky Bottom Area */}
-      <footer className="flex-none relative z-20 px-4 pb-[20px] pt-4 bg-gradient-to-t from-background via-background/90 to-transparent flex flex-col items-center justify-end">
+      <footer className="flex-none relative z-20 px-4 pb-[40px] pt-4 bg-gradient-to-t from-background via-background/90 to-transparent flex flex-col items-center justify-end">
         <div className="w-full max-w-md mx-auto space-y-4">
           {status === 'idle' && updatedRemaining > 0 && (
             <>
