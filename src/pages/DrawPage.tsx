@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useLotteryStore } from '@/store/lottery'
 import { PRIZE_ICONS } from '@/types'
 import type { Participant, DrawStatus } from '@/types'
 import { ArrowLeft } from 'lucide-react'
-import confetti from 'canvas-confetti'
 import BackgroundEffects from '@/components/ui/BackgroundEffects'
 import { soundManager } from '@/lib/sound'
 
@@ -23,27 +22,44 @@ export default function DrawPage() {
   const [currentWinners, setCurrentWinners] = useState<Participant[]>([])
   const [rotation, setRotation] = useState(0)
   const [speed, setSpeed] = useState(0.5)
-  const [showFireworks, setShowFireworks] = useState(false)
+  // Removed showFireworks state as we rely on BackgroundEffects auto or specific trigger if needed
+  // actually we might want a burst when winning, let's keep a trigger
+  const [triggerFireworks, setTriggerFireworks] = useState(false)
+  
   const animRef = useRef<number>(0)
   const containerRef = useRef<HTMLDivElement>(null)
-
-  // Slot machine state
-
 
   const availableParticipants = store.getAvailableParticipants()
   const drawCount = store.settings.drawMode === 'single' ? 1 : remaining
   const icon = prize ? (PRIZE_ICONS[prize.order] || '🎁') : '🎁'
 
-  // 检查是否参与人数不足
+  // Manage display list to ensure winners stay in cloud during animation
+  const [displayParticipants, setDisplayParticipants] = useState<Participant[]>([])
+
+  // Sync display list with available participants when idle
+  useEffect(() => {
+    if (status === 'idle') {
+      // Shuffle or just take first 80? 
+      // To make it look dynamic, we could shuffle, but for consistency let's stick to slice
+      // unless the list is small.
+      // Let's just take the available ones.
+      setDisplayParticipants(availableParticipants)
+    }
+  }, [availableParticipants, status])
+
   const showWarning = availableParticipants.length < remaining && status === 'idle'
 
-  // 3D Cloud Animation with slot machine sound
+  // 3D Cloud Animation
   useEffect(() => {
     let running = true
     let tickCounter = 0
     const animate = () => {
       if (!running) return
-      setRotation(prev => prev + speed)
+      
+      // Stop rotation when highlighting winners
+      if (status !== 'highlighting') {
+        setRotation(prev => prev + speed)
+      }
 
       // Play slot machine tick sound based on speed
       if (status === 'drawing' || status === 'slowing') {
@@ -66,71 +82,88 @@ export default function DrawPage() {
     }
   }, [speed, status])
 
-  const getCloudItemStyle = useCallback((index: number, total: number) => {
+  const getCloudItemStyle = useCallback((index: number, total: number, isWinner: boolean) => {
+    // If highlighting and isWinner, use special transform
+    if (status === 'highlighting' && isWinner) {
+      return {
+        transform: 'translate(-50%, -50%) scale(2)',
+        opacity: 1,
+        zIndex: 100,
+        fontSize: '24px',
+        fontWeight: 'bold',
+        transition: 'all 0.5s ease-out'
+      }
+    }
+
     const phi = Math.acos(-1 + (2 * index + 1) / total)
     const theta = Math.sqrt(total * Math.PI) * phi + (rotation * Math.PI) / 180
 
     const radius = Math.min(450, Math.max(220, total * 9))
-    const x = Math.cos(theta) * Math.sin(phi) * radius
-    const y = Math.cos(phi) * radius * 0.6
-    const z = Math.sin(theta) * Math.sin(phi) * radius
+    // Adjust radius for smaller screens
+    const responsiveRadius = window.innerWidth < 640 ? radius * 0.6 : radius
 
-    const scale = (z + radius) / (2 * radius) * 0.6 + 0.4
-    const opacity = (z + radius) / (2 * radius) * 0.7 + 0.3
+    const x = Math.cos(theta) * Math.sin(phi) * responsiveRadius
+    const y = Math.cos(phi) * responsiveRadius * 0.6
+    const z = Math.sin(theta) * Math.sin(phi) * responsiveRadius
+
+    const scale = (z + responsiveRadius) / (2 * responsiveRadius) * 0.6 + 0.4
+    const opacity = (z + responsiveRadius) / (2 * responsiveRadius) * 0.7 + 0.3
 
     return {
       transform: `translate(-50%, -50%) translate3d(${x}px, ${y}px, ${z}px) scale(${scale})`,
-      opacity,
-      zIndex: Math.round(z + radius),
+      opacity: status === 'highlighting' ? 0.1 : opacity, // Dim others when highlighting
+      zIndex: Math.round(z + responsiveRadius),
       fontSize: `${Math.max(12, 14 * scale)}px`,
+      transition: status === 'highlighting' ? 'opacity 0.5s ease-out' : 'none'
     }
-  }, [rotation])
-
-  const fireConfetti = () => {
-    const duration = 3000
-    const end = Date.now() + duration
-
-    const frame = () => {
-      confetti({
-        particleCount: 3,
-        angle: 60,
-        spread: 55,
-        origin: { x: 0, y: 0.7 },
-        colors: ['#E53935', '#FFD54F', '#FF6F61', '#FFC107'],
-      })
-      confetti({
-        particleCount: 3,
-        angle: 120,
-        spread: 55,
-        origin: { x: 1, y: 0.7 },
-        colors: ['#E53935', '#FFD54F', '#FF6F61', '#FFC107'],
-      })
-      if (Date.now() < end) requestAnimationFrame(frame)
-    }
-    frame()
-
-    setTimeout(() => {
-      confetti({
-        particleCount: 100,
-        spread: 100,
-        origin: { y: 0.5 },
-        colors: ['#E53935', '#FFD54F', '#FF6F61', '#FFC107', '#FFFFFF'],
-      })
-    }, 500)
-  }
-
+  }, [rotation, status])
 
   const handleDraw = () => {
     if (status !== 'idle' || remaining <= 0) return
 
+    // 1. Prepare
     setStatus('preparing')
     setCurrentWinners([])
 
-    // Pre-calculate winners
+    // 2. Draw (Store updates immediately)
     const winners = store.drawWinners(prizeId!, drawCount)
     if (winners.length === 0) return
 
-    // Phase 1: Speed up
+    // 3. Inject winners into displayParticipants if they are not present
+    // This ensures they are visible in the cloud for highlighting
+    setDisplayParticipants(prev => {
+      const newDisplay = [...prev]
+      // Use a limited set for cloud (e.g. 80)
+      // If we have more than 80, we slice.
+      // But we must ensure winners are in the slice.
+      
+      const winnerIds = new Set(winners.map(w => w.participantId))
+      const winnersInDisplay = newDisplay.filter(p => winnerIds.has(p.id))
+      const missingWinners = winners.filter(w => !newDisplay.find(p => p.id === w.participantId))
+      
+      let finalDisplay = newDisplay
+      
+      if (missingWinners.length > 0) {
+        // We need to add them. 
+        // If list is small, just push.
+        // If list is large (sliced), replace items or prepend.
+        // Let's just prepend them to ensure they are in the first N items
+        const missingParticipants = missingWinners.map(w => w.participant)
+        finalDisplay = [...missingParticipants, ...newDisplay]
+      }
+      
+      // Limit to 80 for performance/visuals
+      if (finalDisplay.length > 80) {
+        // Ensure winners are kept
+        // We just prepended them, so slice(0, 80) should keep them
+        // unless there are > 80 winners (unlikely)
+        finalDisplay = finalDisplay.slice(0, 80)
+      }
+      
+      return finalDisplay
+    })
+
+    // 4. Start Animation Phase 1: Speed up
     setSpeed(8)
     setStatus('drawing')
 
@@ -140,15 +173,24 @@ export default function DrawPage() {
       setStatus('slowing')
     }, 2500)
 
-    // Phase 3: Reveal
+    // Phase 3: Highlight (Stop and Show Winners)
     setTimeout(() => {
       setSpeed(0)
-      setStatus('finished')
+      setStatus('highlighting')
       setCurrentWinners(winners)
-      fireConfetti()
-      setShowFireworks(true)
-      // Play win sound - layered celebratory effect
+      setTriggerFireworks(true)
       soundManager.playWin()
+      
+      // Haptic feedback if available
+      if (navigator.vibrate) {
+        navigator.vibrate([100, 50, 100])
+      }
+      
+      // Phase 4: Restore / Finished (after 10s)
+      setTimeout(() => {
+        setStatus('finished')
+        setTriggerFireworks(false)
+      }, 10000)
     }, 3500)
   }
 
@@ -167,166 +209,150 @@ export default function DrawPage() {
   }
 
   const updatedRemaining = prize.count - store.winners.filter(w => w.prizeId === prizeId).length
+  const currentWinnerIds = new Set(currentWinners.map(w => w.id))
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-bg relative overflow-hidden">
-      <BackgroundEffects showFireworks={showFireworks} onFireworksComplete={() => setShowFireworks(false)} />
-      {/* Top Bar */}
-      <header className="relative z-10 flex items-center justify-between px-4 sm:px-8 py-4">
+    <div className="h-screen flex flex-col bg-gradient-bg relative overflow-hidden">
+      {/* Background with soft particles matching SettingsPage */}
+      <BackgroundEffects 
+        showFireworks={triggerFireworks} 
+        onFireworksComplete={() => setTriggerFireworks(false)} 
+        // Auto defaults to true in component, which gives soft particles
+      />
+      
+      {/* Adaptive Title Status Bar */}
+      <header className="flex-none relative z-10 flex items-center justify-between px-4 sm:px-8 py-4 sm:py-6 bg-background/10 backdrop-blur-[2px]">
         <button
           onClick={() => navigate('/')}
-          className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium hover:bg-accent transition-colors text-foreground"
+          className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium hover:bg-accent/50 transition-colors text-foreground"
         >
-          <ArrowLeft size={18} />
+          <ArrowLeft size={20} />
           <span className="hidden sm:inline">返回</span>
         </button>
-        <div className="flex items-center gap-3 text-foreground">
-          <span className="text-xl">{icon}</span>
-          <span className="font-display font-bold text-lg">{prize.name}</span>
-          <span className="text-sm text-muted-foreground">·</span>
-          <span className="text-sm text-muted-foreground">{prize.prizeName}</span>
+        
+        {/* Enlarged Title */}
+        <div className="flex items-center gap-3 text-foreground animate-fade-in">
+          <span className="text-3xl sm:text-4xl filter drop-shadow-md">{icon}</span>
+          <div className="flex flex-col items-center">
+            <span className="font-display font-bold text-2xl sm:text-3xl tracking-wide filter drop-shadow-sm">
+              {prize.name}
+            </span>
+            <span className="text-sm sm:text-base text-muted-foreground/80 font-medium">
+              {prize.prizeName}
+            </span>
+          </div>
         </div>
-        <div className="text-sm text-muted-foreground font-medium">
-          {drawn}/{prize.count} 已抽取
+        
+        <div className="text-base sm:text-lg text-foreground/80 font-medium font-mono bg-background/20 px-3 py-1 rounded-full backdrop-blur-md border border-white/10">
+          {drawn} / {prize.count}
         </div>
       </header>
 
-      {/* Main Animation Area */}
-      <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-4">
-        {/* Current Round Winners */}
-        {currentWinners.length > 0 && status === 'finished' && (
-          <div className="mb-8 w-full max-w-4xl animate-fade-in-up">
-            <h3 className="text-sm font-bold text-foreground mb-3 text-center">本轮中奖</h3>
-            <div className="flex flex-wrap justify-center gap-4 mx-auto items-center">
-              {currentWinners.map(w => (
-                <div
-                  key={w.id}
-                  className="w-[30%] min-w-[240px] max-w-[320px] px-6 py-4 rounded-xl bg-card border border-primary/20 shadow-sm flex items-center gap-4 justify-center"
-                >
-                  <div className="text-center w-full flex items-center justify-center gap-3">
-                    <p className="font-bold text-xl text-foreground whitespace-nowrap">{w.name}</p>
-                    <div className="h-4 w-[1px] bg-border"></div>
-                    <p className="text-sm text-muted-foreground whitespace-nowrap">
-                      {w.employeeId}{w.department && ` · ${w.department}`}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 3D Cloud Animation */}
+      {/* Main Cloud Area - Centered and occupying available space */}
+      <main className="flex-1 relative z-10 flex items-center justify-center overflow-hidden w-full">
         <div
           ref={containerRef}
-          className="cloud-container relative w-full max-w-4xl aspect-square flex items-center justify-center"
-          style={{ minHeight: '600px' }}
+          className="cloud-container relative w-full h-full max-w-5xl flex items-center justify-center perspective-[1000px]"
         >
-          <div className="cloud-sphere relative w-full h-full">
-            {status === 'finished' ? (
-               // Winner display handled above cloud now, so this can be empty or show something else if needed
-               // But to keep the structure, we might just hide the cloud items or show a celebration effect
-               <div className="absolute inset-0 flex items-center justify-center">
-                  {/* Optional: Central Celebration Icon or Text */}
-               </div>
-            ) : (
-              /* Rotating Names */
-              availableParticipants.slice(0, 80).map((p, i) => (
+          <div className="cloud-sphere relative w-full h-full flex items-center justify-center preserve-3d">
+            {displayParticipants.slice(0, 80).map((p, i) => {
+               const isWinner = currentWinnerIds.has(p.id)
+               const style = getCloudItemStyle(i, Math.min(displayParticipants.length, 80), isWinner)
+               
+               return (
                 <div
                   key={p.id}
-                  className="cloud-item px-3 py-1.5 rounded-lg font-body font-medium whitespace-nowrap"
-                  style={{
-                    ...getCloudItemStyle(i, Math.min(availableParticipants.length, 80)),
-                    color: 'var(--foreground)',
-                    backgroundColor: 'var(--accent)',
-                    border: '1px solid var(--border)',
-                  }}
+                  className={`cloud-item absolute flex items-center justify-center px-4 py-2 rounded-xl font-body font-medium whitespace-nowrap transition-colors duration-300
+                    ${isWinner && status === 'highlighting' 
+                      ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white shadow-[0_0_30px_rgba(255,165,0,0.6)] border-2 border-white animate-pulse-scale' 
+                      : 'bg-card/90 text-foreground border border-white/10 shadow-sm backdrop-blur-sm'
+                    }
+                  `}
+                  style={style}
                 >
-                  {p.name}
+                  <span className="mr-2">{p.name}</span>
+                  {/* Show ID only if space permits or if winner */}
+                  {(isWinner || displayParticipants.length < 20) && (
+                    <span className="opacity-80 text-[0.8em]">{p.employeeId}</span>
+                  )}
                 </div>
-              ))
-            )}
+              )
+            })}
           </div>
         </div>
+      </main>
 
-        {/* Draw Button */}
-        <div className="mt-8 sm:mt-12">
+      {/* Footer - Fixed/Sticky Bottom Area */}
+      <footer className="flex-none relative z-20 px-4 py-6 sm:py-8 bg-gradient-to-t from-background via-background/90 to-transparent flex flex-col items-center justify-end pb-safe">
+        <div className="w-full max-w-md mx-auto space-y-4">
           {status === 'idle' && updatedRemaining > 0 && (
-            <div>
+            <>
               {showWarning && (
-                <div className="mb-4 p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-600 dark:text-yellow-400 text-sm text-center">
-                  <p>⚠️ 注意：剩余参与者数量 ({availableParticipants.length}) 少于当前奖项剩余名额 ({updatedRemaining})</p>
-                  <p className="mt-1">
-                    <button 
-                      onClick={() => navigate('/settings?tab=participants')} 
-                      className="text-primary underline font-medium hover:no-underline"
-                    >
-                      去添加参与者
-                    </button>
-                  </p>
+                <div className="mb-2 p-3 rounded-lg bg-yellow-500/20 border border-yellow-500/30 text-yellow-600 dark:text-yellow-400 text-xs sm:text-sm text-center animate-bounce-subtle">
+                  ⚠️ 剩余参与者不足 ({availableParticipants.length} &lt; {updatedRemaining})
                 </div>
               )}
               <button
                 onClick={handleDraw}
                 disabled={showWarning}
-                className={`px-12 py-4 rounded-2xl text-lg font-bold bg-gradient-primary text-primary-foreground shadow-glow hover:shadow-glow-lg transition-all duration-300 hover:scale-105 active:scale-95 ${showWarning ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`w-full py-4 sm:py-5 rounded-2xl text-xl sm:text-2xl font-bold bg-gradient-primary text-primary-foreground shadow-glow hover:shadow-glow-lg transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2
+                  ${showWarning ? 'opacity-50 cursor-not-allowed grayscale' : ''}
+                `}
               >
-                🎲 开始抽奖
+                <span>🎲</span> 开始抽奖
               </button>
-            </div>
+            </>
           )}
+
           {(status === 'drawing' || status === 'preparing' || status === 'slowing') && (
-            <div className="px-12 py-4 rounded-2xl text-lg font-bold bg-gradient-primary text-primary-foreground opacity-80 animate-pulse-glow">
-              抽奖中...
+            <div className="w-full py-4 sm:py-5 rounded-2xl text-xl sm:text-2xl font-bold bg-muted/50 text-muted-foreground border-2 border-primary/20 flex items-center justify-center gap-3 animate-pulse">
+               <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
+               <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+               <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
+               <span>抽奖中...</span>
             </div>
           )}
-          {status === 'finished' && (
-            <div className="flex gap-4">
+
+          {(status === 'highlighting' || status === 'finished') && (
+            <div className="flex gap-3 w-full animate-fade-in-up">
               {updatedRemaining > 0 && (
                 <button
                   onClick={handleContinue}
-                  className="px-8 py-3 rounded-xl text-sm font-bold bg-gradient-primary text-primary-foreground shadow-glow hover:shadow-glow-lg transition-all"
+                  className="flex-1 py-3 sm:py-4 rounded-xl text-lg font-bold bg-gradient-primary text-primary-foreground shadow-glow hover:shadow-glow-lg transition-all hover:scale-[1.02]"
                 >
-                  继续抽奖 ({updatedRemaining} 名额)
+                  继续 ({updatedRemaining})
                 </button>
               )}
               <button
                 onClick={() => navigate('/')}
-                className={`px-8 py-3 rounded-xl text-sm font-medium border border-border transition-colors text-foreground ${settings.theme === 'red' ? 'bg-yellow-400 text-foreground hover:bg-yellow-500' : 'hover:bg-accent'}`}
+                className="flex-1 py-3 sm:py-4 rounded-xl text-lg font-medium border-2 border-border/50 hover:bg-accent hover:border-accent transition-all"
               >
                 返回首页
               </button>
             </div>
           )}
-          {updatedRemaining <= 0 && status === 'idle' && (
-            <button
-              onClick={() => navigate('/')}
-              className={`px-8 py-3 rounded-xl text-sm font-medium border border-border transition-colors text-foreground ${settings.theme === 'red' ? 'bg-yellow-400 text-foreground hover:bg-yellow-500' : 'hover:bg-accent'}`}
-            >
-              该奖项已抽完，返回首页
-            </button>
-          )}
         </div>
-
-        {/* All Winners for this Prize */}
-        {prizeWinners.length > 0 && status === 'idle' && (
-          <div className="mt-8 w-full max-w-2xl">
-            <h3 className="text-sm font-bold text-foreground mb-3 text-center">
-              已中奖 ({prizeWinners.length}/{prize.count})
-            </h3>
-            <div className="flex flex-wrap justify-center gap-2">
-              {prizeWinners.map(w => (
-                <div
-                  key={w.id}
-                  className="px-3 py-1.5 rounded-lg bg-accent text-xs font-medium text-foreground"
-                >
-                  {w.participant.name}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </main>
+      </footer>
+      
+      {/* Global Style for 3D preserve */}
+      <style>{`
+        .preserve-3d {
+          transform-style: preserve-3d;
+        }
+        .perspective-1000 {
+          perspective: 1000px;
+        }
+        @keyframes pulse-scale {
+          0%, 100% { transform: translate(-50%, -50%) scale(2); box-shadow: 0 0 30px rgba(255,165,0,0.6); }
+          50% { transform: translate(-50%, -50%) scale(2.2); box-shadow: 0 0 50px rgba(255,165,0,0.8); }
+        }
+        .animate-pulse-scale {
+          animation: pulse-scale 2s infinite ease-in-out;
+        }
+        .pb-safe {
+          padding-bottom: env(safe-area-inset-bottom, 24px);
+        }
+      `}</style>
     </div>
   )
 }

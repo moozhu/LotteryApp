@@ -41,7 +41,7 @@ export interface AppSettings {
 }
 
 // ==================== Draw State ====================
-export type DrawStatus = 'idle' | 'preparing' | 'drawing' | 'slowing' | 'finished'
+export type DrawStatus = 'idle' | 'preparing' | 'drawing' | 'slowing' | 'highlighting' | 'finished'
 
 // ==================== Theme ====================
 export interface ThemeConfig {
