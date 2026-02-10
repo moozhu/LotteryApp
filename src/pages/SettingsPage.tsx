@@ -208,9 +208,32 @@ function ParticipantsTab() {
       const text = await readFileWithEncoding(file)
       console.log('读取的文件内容:', text.substring(0, 200))
       
-      const parsedData = Papa.parse(text, {
+      // 移除 BOM 标记（WPS/Excel 可能在文件开头添加）
+      const cleanText = text.replace(/^\uFEFF/, '')
+      
+      // 检测分隔符（WPS 可能使用分号或制表符）
+      const firstLine = cleanText.split(/\r?\n/)[0] || ''
+      let delimiter = ','
+      if (firstLine.includes(';') && !firstLine.includes(',')) {
+        delimiter = ';'
+      } else if (firstLine.includes('\t') && !firstLine.includes(',')) {
+        delimiter = '\t'
+      }
+      
+      console.log('使用的分隔符:', delimiter)
+      
+      const parsedData = Papa.parse(cleanText, {
         header: true,
         skipEmptyLines: true,
+        delimiter: delimiter,
+        transformHeader: (header: string) => {
+          // 移除表头中的引号和空格
+          return header.replace(/^["']|["']$/g, '').trim()
+        },
+        transform: (value: string) => {
+          // 移除单元格中的引号
+          return value.replace(/^["']|["']$/g, '').trim()
+        }
       })
       
       console.log('解析结果:', parsedData)
