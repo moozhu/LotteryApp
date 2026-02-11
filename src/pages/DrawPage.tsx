@@ -5,7 +5,6 @@ import { PRIZE_ICONS } from '@/types'
 import type { Participant, DrawStatus } from '@/types'
 import { ArrowLeft } from 'lucide-react'
 import { soundManager } from '@/lib/sound'
-import BackgroundEffects from '@/components/ui/BackgroundEffects'
 import PrizeFireworks from '@/components/ui/PrizeFireworks'
 
 export default function DrawPage() {
@@ -116,7 +115,7 @@ export default function DrawPage() {
         transform: 'scale(0)',
         opacity: 0,
         zIndex: 0,
-        transition: 'all 0.5s ease-in'
+        transition: 'none'
       }
     }
 
@@ -136,14 +135,14 @@ export default function DrawPage() {
     const baseOpacity = (z + responsiveRadius) / (2 * responsiveRadius) * 0.7 + 0.3
 
     if (status === 'highlighting' && isWinner) {
-      const scale = Math.min(2.2, baseScale * 1.6)
+      const scale = Math.min(1.45, baseScale * 1.15)
       return {
         transform: `translate(-50%, -50%) translate3d(${x}px, ${y}px, ${z}px) scale(${scale})`,
         opacity: 1,
         zIndex: 200,
         fontSize: `${Math.max(16, 16 * scale)}px`,
         fontWeight: 'bold',
-        transition: 'all 0.5s ease-out'
+        transition: 'none'
       }
     }
 
@@ -152,7 +151,7 @@ export default function DrawPage() {
       opacity: status === 'highlighting' ? 0.1 : baseOpacity,
       zIndex: Math.round(z + responsiveRadius),
       fontSize: `${Math.max(12, 14 * baseScale)}px`,
-      transition: status === 'highlighting' ? 'opacity 0.5s ease-out' : 'none'
+      transition: 'none'
     }
   }, [rotation, status, displayParticipants, cloudSize.width, cloudSize.height])
 
@@ -218,14 +217,6 @@ export default function DrawPage() {
       setSpeed(0)
       setStatus('highlighting')
       setShowPrizeFireworks(true) // 触发中奖礼花动效
-      soundManager.playFireworkBurst()
-      setTimeout(() => soundManager.playWin(), 120)
-      
-      // Haptic feedback if available
-      if (navigator.vibrate) {
-        navigator.vibrate([100, 50, 100])
-      }
-      
     }, 3500)
 
     setTimeout(() => {
@@ -278,24 +269,6 @@ export default function DrawPage() {
         })()}
         duration={4000}
       />
-      
-      {/* 保留原有背景动效，但只在 finished 状态显示 */}
-      <BackgroundEffects 
-        showFireworks={status === 'finished'}
-        auto={false}
-        enableBackground={false}
-        burstPoints={(() => {
-          if (status !== 'finished') return undefined
-          const rect = containerRef.current?.getBoundingClientRect()
-          const width = rect?.width || window.innerWidth
-          const height = rect?.height || window.innerHeight
-          const left = rect?.left || 0
-          const top = rect?.top || 0
-          return [
-            { x: left + width * 0.5, y: top + height * 0.5 },
-          ]
-        })()}
-      />
       {/* Adaptive Title Status Bar */}
       <header className="flex-none relative z-10 flex items-center justify-between px-4 sm:px-8 py-4 sm:py-6 bg-background/10 backdrop-blur-[2px]">
         <button
@@ -339,13 +312,13 @@ export default function DrawPage() {
         {(status === 'finished' || status === 'idle' || status === 'preparing' || status === 'drawing' || status === 'slowing' || status === 'highlighting') && prizeWinners.length > 0 && (
           <div
             ref={winnersListRef}
-            className="flex flex-col items-center gap-2 w-full max-w-[1400px] px-4 transition-all duration-500 ease-out"
+            className="flex flex-col items-center gap-2 w-full max-w-[1400px] px-4"
             style={{
               opacity: status === 'finished' || status === 'idle' ? 1 : 0,
-              transform: status === 'finished' || status === 'idle' ? 'translateY(0)' : 'translateY(10px)'
+              transform: 'translateY(0)'
             }}
           >
-            <div className={`flex flex-wrap justify-center gap-4 w-full transition-all duration-300 ease-in-out ${showAllWinners ? '' : 'overflow-hidden'}`}>
+            <div className={`flex flex-wrap justify-center gap-4 w-full ${showAllWinners ? '' : 'overflow-hidden'}`}>
             {(() => {
               // Logic to filter and slice winners
               // 1. Filter visible winners based on logic (hide current batch if not finished/idle)
@@ -365,11 +338,10 @@ export default function DrawPage() {
                   <>
                     {displayList.map((w, index) => {
                       if (!w || !w.participant) return null
-                      const isNew = status === 'finished' && currentWinners.some(cw => cw.id === w.participantId)
                       return (
                         <div
                           key={w.id}
-                          className={`bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-3 py-3 rounded-xl flex items-center justify-center gap-2 transform transition-all duration-500 hover:scale-105 min-w-[140px] ${isNew ? 'animate-fade-in-up' : ''}`}
+                          className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-3 py-3 rounded-xl flex items-center justify-center gap-2 transform transition-all duration-500 hover:scale-105 min-w-[140px]"
                         >
                         <span className="text-lg font-bold truncate max-w-[80px]">{w.participant.name}</span>
                         <span className="opacity-90 text-xs border-l border-white/30 pl-2">{w.participant.employeeId}</span>

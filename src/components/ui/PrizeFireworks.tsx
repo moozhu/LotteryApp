@@ -1,25 +1,28 @@
 import { useEffect, useRef, useCallback } from 'react'
+import { soundManager } from '@/lib/sound'
 
 /**
- * 中奖礼花爆炸动效组件
- * 专门为中奖场景设计的礼花爆炸效果，具有层次感和立体感
+ * 彩带爆炸动效组件
+ * 专门为中奖场景设计的彩带爆炸效果
  */
-interface FireworkParticle {
+interface ConfettiParticle {
   x: number
   y: number
   vx: number
   vy: number
-  size: number
-  alpha: number
+  width: number
+  height: number
   color: string
-  type: 'sparkle' | 'ribbon' | 'star' | 'circle'
   rotation: number
   rotationSpeed: number
   gravity: number
   drag: number
   life: number
   maxLife: number
-  trail: Array<{ x: number; y: number; alpha: number }>
+  alpha: number
+  type: 'ribbon' | 'paper' | 'star'
+  oscillation: number
+  oscillationSpeed: number
 }
 
 interface PrizeFireworksProps {
@@ -31,6 +34,8 @@ interface PrizeFireworksProps {
   center?: { x: number; y: number }
   /** 动画持续时间（毫秒） */
   duration?: number
+  /** 是否播放音效 */
+  withSound?: boolean
 }
 
 /**
@@ -47,68 +52,87 @@ const CELEBRATION_COLORS = [
   '#FFB347', // 浅橙
   '#FF6B35', // 珊瑚橙
   '#FFD700', // 金色
+  '#FF69B4', // 热粉
+  '#FFA07A', // 浅鲑鱼色
 ]
 
 /**
- * 粒子类型定义
+ * 彩带类型定义
  */
-const PARTICLE_TYPES: Array<'sparkle' | 'ribbon' | 'star' | 'circle'> = [
-  'sparkle', 'ribbon', 'star', 'circle'
-]
+const CONFETTI_TYPES: Array<'ribbon' | 'paper' | 'star'> = ['ribbon', 'paper', 'star']
 
-export default function PrizeFireworks({ 
-  trigger, 
-  onComplete, 
+export default function PrizeFireworks({
+  trigger,
+  onComplete,
   center,
-  duration = 4000 
+  duration = 4000,
+  withSound = true,
 }: PrizeFireworksProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const particlesRef = useRef<FireworkParticle[]>([])
+  const particlesRef = useRef<ConfettiParticle[]>([])
   const animationRef = useRef<number>(0)
   const triggeredRef = useRef(false)
   const startTimeRef = useRef<number>(0)
+  const centerRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
 
   /**
-   * 创建单个粒子
+   * 创建彩带粒子
    */
-  const createParticle = useCallback((x: number, y: number, angle: number, speed: number): FireworkParticle => {
-    const type = PARTICLE_TYPES[Math.floor(Math.random() * PARTICLE_TYPES.length)]
-    const life = 2000 + Math.random() * 2000 // 2-4秒生命周期
-    const size = type === 'ribbon' ? 
-      Math.random() * 3 + 2 : 
-      Math.random() * 6 + 3
+  const createParticle = useCallback((x: number, y: number, angle: number, speed: number): ConfettiParticle => {
+    const type = CONFETTI_TYPES[Math.floor(Math.random() * CONFETTI_TYPES.length)]
+    const life = 2500 + Math.random() * 2000 // 2.5-4.5秒生命周期
+    const color = CELEBRATION_COLORS[Math.floor(Math.random() * CELEBRATION_COLORS.length)]
+    
+    // 根据类型设置不同的尺寸
+    let width: number, height: number
+    switch (type) {
+      case 'ribbon':
+        width = Math.random() * 8 + 6
+        height = Math.random() * 20 + 15
+        break
+      case 'paper':
+        width = Math.random() * 10 + 8
+        height = width
+        break
+      case 'star':
+        width = Math.random() * 12 + 8
+        height = width
+        break
+    }
     
     return {
       x,
       y,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
-      size,
-      alpha: 1,
-      color: CELEBRATION_COLORS[Math.floor(Math.random() * CELEBRATION_COLORS.length)],
-      type,
+      width,
+      height,
+      color,
       rotation: Math.random() * Math.PI * 2,
       rotationSpeed: (Math.random() - 0.5) * 0.4,
-      gravity: 0.12 + Math.random() * 0.08,
+      gravity: 0.15 + Math.random() * 0.1,
       drag: 0.985 + Math.random() * 0.01,
       life,
       maxLife: life,
-      trail: []
+      alpha: 1,
+      type,
+      oscillation: Math.random() * Math.PI * 2,
+      oscillationSpeed: 0.05 + Math.random() * 0.05,
     }
   }, [])
 
   /**
-   * 创建礼花爆炸效果
+   * 创建彩带爆炸效果
    */
-  const createFireworkBurst = useCallback((centerX: number, centerY: number) => {
-    const particles: FireworkParticle[] = []
-    const totalParticles = 120 + Math.floor(Math.random() * 60) // 120-180个粒子
+  const createConfettiBurst = useCallback((centerX: number, centerY: number) => {
+    const particles: ConfettiParticle[] = []
+    const totalParticles = 150 + Math.floor(Math.random() * 50) // 150-200个粒子
     
     // 第一波：核心爆炸 - 快速向外扩散
-    const coreCount = Math.floor(totalParticles * 0.3)
+    const coreCount = Math.floor(totalParticles * 0.35)
     for (let i = 0; i < coreCount; i++) {
-      const angle = (Math.PI * 2 * i) / coreCount + Math.random() * 0.3
-      const speed = 8 + Math.random() * 6
+      const angle = (Math.PI * 2 * i) / coreCount + Math.random() * 0.5
+      const speed = 9 + Math.random() * 7
       particles.push(createParticle(centerX, centerY, angle, speed))
     }
     
@@ -116,90 +140,21 @@ export default function PrizeFireworks({
     const midCount = Math.floor(totalParticles * 0.4)
     for (let i = 0; i < midCount; i++) {
       const angle = Math.random() * Math.PI * 2
-      const speed = 5 + Math.random() * 4
+      const speed = 5 + Math.random() * 5
       particles.push(createParticle(centerX, centerY, angle, speed))
     }
     
-    // 第三波：外围粒子 - 缓慢飘散，增加层次感
-    const outerCount = Math.floor(totalParticles * 0.3)
+    // 第三波：外围粒子 - 缓慢飘散
+    const outerCount = Math.floor(totalParticles * 0.25)
     for (let i = 0; i < outerCount; i++) {
       const angle = Math.random() * Math.PI * 2
-      const speed = 3 + Math.random() * 3
+      const speed = 3 + Math.random() * 4
       particles.push(createParticle(centerX, centerY, angle, speed))
     }
 
     particlesRef.current = particles
     startTimeRef.current = performance.now()
   }, [createParticle])
-
-  /**
-   * 绘制粒子
-   */
-  const drawParticle = (ctx: CanvasRenderingContext2D, particle: FireworkParticle) => {
-    ctx.save()
-    ctx.translate(particle.x, particle.y)
-    ctx.rotate(particle.rotation)
-    ctx.globalAlpha = particle.alpha
-
-    // 绘制粒子拖尾效果
-    if (particle.trail.length > 0) {
-      ctx.strokeStyle = particle.color
-      ctx.lineWidth = particle.size * 0.5
-      ctx.globalAlpha = particle.alpha * 0.3
-      ctx.beginPath()
-      ctx.moveTo(0, 0)
-      
-      for (let i = 0; i < particle.trail.length; i++) {
-        const point = particle.trail[i]
-        ctx.lineTo(point.x - particle.x, point.y - particle.y)
-        ctx.globalAlpha = point.alpha * particle.alpha * 0.3
-      }
-      
-      ctx.stroke()
-    }
-
-    ctx.globalAlpha = particle.alpha
-
-    switch (particle.type) {
-      case 'sparkle':
-        // 绘制闪烁星星
-        ctx.fillStyle = particle.color
-        ctx.shadowBlur = 15
-        ctx.shadowColor = particle.color
-        drawStar(ctx, 0, 0, 5, particle.size, particle.size * 0.4)
-        break
-        
-      case 'star':
-        // 绘制四角星
-        ctx.fillStyle = particle.color
-        ctx.shadowBlur = 12
-        ctx.shadowColor = particle.color
-        drawStar(ctx, 0, 0, 4, particle.size * 1.2, particle.size * 0.3)
-        break
-        
-      case 'circle':
-        // 绘制发光圆点
-        ctx.beginPath()
-        ctx.arc(0, 0, particle.size, 0, Math.PI * 2)
-        ctx.fillStyle = particle.color
-        ctx.shadowBlur = 10
-        ctx.shadowColor = particle.color
-        ctx.fill()
-        break
-        
-      case 'ribbon':
-        // 绘制彩带
-        ctx.fillStyle = particle.color
-        ctx.shadowBlur = 8
-        ctx.shadowColor = particle.color
-        const width = particle.size * 3
-        const height = particle.size * 0.4
-        ctx.fillRect(-width / 2, -height / 2, width, height)
-        break
-    }
-
-    ctx.restore()
-  }
 
   /**
    * 绘制星形
@@ -229,17 +184,86 @@ export default function PrizeFireworks({
   }
 
   /**
+   * 绘制彩带粒子
+   */
+  const drawParticle = (ctx: CanvasRenderingContext2D, particle: ConfettiParticle, time: number) => {
+    ctx.save()
+    ctx.translate(particle.x, particle.y)
+    ctx.rotate(particle.rotation)
+    ctx.globalAlpha = particle.alpha
+
+    // 添加摆动效果
+    const oscillation = Math.sin(time * particle.oscillationSpeed + particle.oscillation) * 0.1
+    ctx.scale(1 + oscillation, 1 - oscillation)
+
+    ctx.fillStyle = particle.color
+    ctx.shadowBlur = 8
+    ctx.shadowColor = particle.color
+
+    switch (particle.type) {
+      case 'ribbon':
+        // 绘制彩带条 - 带弯曲效果
+        ctx.beginPath()
+        ctx.moveTo(-particle.width / 2, -particle.height / 2)
+        ctx.quadraticCurveTo(
+          particle.width / 2, 
+          -particle.height / 4,
+          particle.width / 2,
+          0
+        )
+        ctx.quadraticCurveTo(
+          particle.width / 2,
+          particle.height / 4,
+          -particle.width / 2,
+          particle.height / 2
+        )
+        ctx.quadraticCurveTo(
+          -particle.width / 2,
+          particle.height / 4,
+          -particle.width / 2,
+          0
+        )
+        ctx.quadraticCurveTo(
+          -particle.width / 2,
+          -particle.height / 4,
+          -particle.width / 2,
+          -particle.height / 2
+        )
+        ctx.closePath()
+        ctx.fill()
+        break
+        
+      case 'paper':
+        // 绘制方形纸片
+        ctx.fillRect(
+          -particle.width / 2,
+          -particle.height / 2,
+          particle.width,
+          particle.height
+        )
+        break
+        
+      case 'star':
+        // 绘制五角星
+        drawStar(ctx, 0, 0, 5, particle.width / 2, particle.width / 5)
+        break
+    }
+
+    ctx.restore()
+  }
+
+  /**
    * 绘制爆炸光晕效果
    */
   const drawExplosionGlow = (ctx: CanvasRenderingContext2D, x: number, y: number, progress: number) => {
-    const maxRadius = 200
-    const radius = maxRadius * (1 - progress * 0.7)
-    const alpha = 0.4 * (1 - progress)
+    const maxRadius = 180
+    const radius = maxRadius * (1 - progress * 0.6)
+    const alpha = 0.35 * (1 - progress)
     
     const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius)
     gradient.addColorStop(0, `rgba(255, 215, 0, ${alpha})`)
     gradient.addColorStop(0.3, `rgba(255, 165, 0, ${alpha * 0.7})`)
-    gradient.addColorStop(0.6, `rgba(255, 69, 0, ${alpha * 0.4})`)
+    gradient.addColorStop(0.7, `rgba(255, 69, 0, ${alpha * 0.3})`)
     gradient.addColorStop(1, 'rgba(255, 165, 0, 0)')
     
     ctx.fillStyle = gradient
@@ -253,22 +277,30 @@ export default function PrizeFireworks({
       triggeredRef.current = false
       return
     }
-    
-    if (trigger && !triggeredRef.current) {
+
+    if (!triggeredRef.current) {
       triggeredRef.current = true
-      
+
       const canvas = canvasRef.current
-      if (canvas) {
-        const rect = canvas.getBoundingClientRect()
-        const centerPoint = center || { 
-          x: rect.width * 0.5, 
-          y: rect.height * 0.4 
-        }
-        
-        createFireworkBurst(centerPoint.x, centerPoint.y)
+      if (!canvas) return
+      const rect = canvas.getBoundingClientRect()
+      const c = center || { x: rect.width * 0.5, y: rect.height * 0.5 }
+      centerRef.current = c
+
+      particlesRef.current = []
+      startTimeRef.current = performance.now()
+
+      // 创建彩带爆炸
+      createConfettiBurst(c.x, c.y)
+
+      // 播放音效
+      if (withSound) {
+        soundManager.playWin()
+        setTimeout(() => soundManager.playFireworkBurst(), 40)
+        setTimeout(() => soundManager.playFireworkBurst(), 240)
       }
     }
-  }, [trigger, center, createFireworkBurst])
+  }, [trigger, center, createConfettiBurst, withSound])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -302,23 +334,24 @@ export default function PrizeFireworks({
      * 动画循环
      */
     const animate = (currentTime: number) => {
-      const deltaTime = currentTime - lastTime
+      const deltaTime = Math.min(34, currentTime - lastTime)
       lastTime = currentTime
 
       // 清空画布
       ctx.clearRect(0, 0, width, height)
 
+      const elapsed = currentTime - startTimeRef.current
+      const progress = Math.min(elapsed / duration, 1)
+
       // 使用 lighter 混合模式实现发光效果
       ctx.globalCompositeOperation = 'lighter'
 
       let hasActiveParticles = false
-      const elapsed = currentTime - startTimeRef.current
-      const progress = Math.min(elapsed / duration, 1)
+      const c = centerRef.current
 
       // 绘制爆炸光晕（仅在动画前半段）
-      if (progress < 0.5 && particlesRef.current.length > 0) {
-        const firstParticle = particlesRef.current[0]
-        drawExplosionGlow(ctx, firstParticle.x, firstParticle.y, progress * 2)
+      if (progress < 0.5) {
+        drawExplosionGlow(ctx, c.x, c.y, progress * 2)
       }
 
       // 更新和绘制粒子
@@ -332,21 +365,16 @@ export default function PrizeFireworks({
         particle.y += particle.vy * (deltaTime / 16)
         
         particle.rotation += particle.rotationSpeed * (deltaTime / 16)
+        particle.oscillation += particle.oscillationSpeed * (deltaTime / 16)
         
         // 生命值衰减
         particle.life -= deltaTime
         particle.alpha = Math.max(0, particle.life / particle.maxLife)
 
-        // 更新拖尾
-        particle.trail.unshift({ x: particle.x, y: particle.y, alpha: particle.alpha })
-        if (particle.trail.length > 8) {
-          particle.trail.pop()
-        }
-
         if (particle.life <= 0 || particle.alpha <= 0) return false
 
         hasActiveParticles = true
-        drawParticle(ctx, particle)
+        drawParticle(ctx, particle, currentTime / 1000)
         return true
       })
 
