@@ -6,6 +6,7 @@ import type { Participant, DrawStatus } from '@/types'
 import { ArrowLeft } from 'lucide-react'
 import { soundManager } from '@/lib/sound'
 import BackgroundEffects from '@/components/ui/BackgroundEffects'
+import PrizeFireworks from '@/components/ui/PrizeFireworks'
 
 export default function DrawPage() {
   const { prizeId } = useParams<{ prizeId: string }>()
@@ -25,6 +26,7 @@ export default function DrawPage() {
   const [speed, setSpeed] = useState(0.5)
   const [showAllWinners, setShowAllWinners] = useState(false)
   const [cloudSize, setCloudSize] = useState({ width: 0, height: 0 })
+  const [showPrizeFireworks, setShowPrizeFireworks] = useState(false)
   
   const animRef = useRef<number>(0)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -215,6 +217,7 @@ export default function DrawPage() {
     setTimeout(() => {
       setSpeed(0)
       setStatus('highlighting')
+      setShowPrizeFireworks(true) // 触发中奖礼花动效
       soundManager.playFireworkBurst()
       setTimeout(() => soundManager.playWin(), 120)
       
@@ -253,20 +256,43 @@ export default function DrawPage() {
 
   return (
     <div className="h-screen flex flex-col bg-gradient-bg relative overflow-hidden">
-      <BackgroundEffects 
-        showFireworks={status === 'highlighting' || status === 'finished'}
-        auto={false}
-        enableBackground={false}
-        burstPoints={(() => {
+      {/* 中奖礼花动效 - 仅在 highlighting 状态显示 */}
+      <PrizeFireworks
+        trigger={showPrizeFireworks}
+        onComplete={() => {
+          // 动效完成后自动隐藏
+          setShowPrizeFireworks(false)
+        }}
+        center={(() => {
           if (status !== 'highlighting') return undefined
           const rect = containerRef.current?.getBoundingClientRect()
           const width = rect?.width || window.innerWidth
           const height = rect?.height || window.innerHeight
           const left = rect?.left || 0
           const top = rect?.top || 0
-          // 云团中间炸开，视觉集中更有惊喜感
+          // 云团中心位置
+          return { 
+            x: left + width * 0.5, 
+            y: top + height * 0.5 
+          }
+        })()}
+        duration={4000}
+      />
+      
+      {/* 保留原有背景动效，但只在 finished 状态显示 */}
+      <BackgroundEffects 
+        showFireworks={status === 'finished'}
+        auto={false}
+        enableBackground={false}
+        burstPoints={(() => {
+          if (status !== 'finished') return undefined
+          const rect = containerRef.current?.getBoundingClientRect()
+          const width = rect?.width || window.innerWidth
+          const height = rect?.height || window.innerHeight
+          const left = rect?.left || 0
+          const top = rect?.top || 0
           return [
-            { x: left + width * 0.5, y: top + height * 0.5 }, // 云团中心
+            { x: left + width * 0.5, y: top + height * 0.5 },
           ]
         })()}
       />
