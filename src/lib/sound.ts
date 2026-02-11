@@ -3,21 +3,38 @@
 class SoundManager {
   private audioContext: AudioContext | null = null
   private enabled: boolean = true
-
-  constructor() {
-    this.initAudioContext()
-  }
+  private spinOsc: OscillatorNode | null = null
+  private spinGain: GainNode | null = null
+  private spinFilter: BiquadFilterNode | null = null
+  private spinLfo: OscillatorNode | null = null
+  private spinLfoGain: GainNode | null = null
+  private spinAmpLfo: OscillatorNode | null = null
+  private spinAmpLfoGain: GainNode | null = null
+  private spinNoise: AudioBufferSourceNode | null = null
+  private spinNoiseGain: GainNode | null = null
+  private spinNoiseFilter: BiquadFilterNode | null = null
 
   private initAudioContext() {
     if (typeof window !== 'undefined' && !this.audioContext) {
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      try {
+        this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      } catch {
+        this.audioContext = null
+      }
     }
   }
 
   setEnabled(enabled: boolean) {
     this.enabled = enabled
+    if (!enabled) {
+      this.stopSpin(true)
+    }
     if (enabled && this.audioContext?.state === 'suspended') {
-      this.audioContext.resume()
+      try {
+        this.audioContext.resume()
+      } catch {
+        this.audioContext = null
+      }
     }
   }
 
@@ -26,9 +43,157 @@ class SoundManager {
       this.initAudioContext()
     }
     if (this.audioContext?.state === 'suspended') {
-      this.audioContext.resume()
+      try {
+        this.audioContext.resume()
+      } catch {
+        this.audioContext = null
+      }
     }
     return this.audioContext
+  }
+
+  startSpin(intensity: number = 1) {
+    if (!this.enabled) return
+    const ctx = this.ensureContext()
+    if (!ctx) return
+
+    const now = ctx.currentTime
+    const amount = Math.min(1, Math.max(0, intensity))
+    const toneTargetGain = 0.012 + amount * 0.03
+    const noiseTargetGain = 0.02 + amount * 0.05
+    const baseFreq = 90 + amount * 95
+    const filterFreq = 700 + amount * 2200
+    const noiseFilterFreq = 450 + amount * 1800
+
+    if (this.spinOsc && this.spinGain && this.spinFilter && this.spinNoiseGain && this.spinNoiseFilter) {
+      this.spinOsc.frequency.setTargetAtTime(baseFreq, now, 0.03)
+      this.spinFilter.frequency.setTargetAtTime(filterFreq, now, 0.03)
+      this.spinGain.gain.cancelScheduledValues(now)
+      this.spinGain.gain.setTargetAtTime(toneTargetGain, now, 0.04)
+      this.spinNoiseFilter.frequency.setTargetAtTime(noiseFilterFreq, now, 0.05)
+      this.spinNoiseGain.gain.cancelScheduledValues(now)
+      this.spinNoiseGain.gain.setTargetAtTime(noiseTargetGain, now, 0.06)
+      return
+    }
+
+    const osc = ctx.createOscillator()
+    const filter = ctx.createBiquadFilter()
+    const gain = ctx.createGain()
+
+    osc.type = 'triangle'
+    osc.frequency.setValueAtTime(baseFreq, now)
+
+    filter.type = 'bandpass'
+    filter.frequency.setValueAtTime(filterFreq, now)
+    filter.Q.setValueAtTime(0.6 + amount * 1.2, now)
+
+    gain.gain.setValueAtTime(0.0001, now)
+
+    const lfo = ctx.createOscillator()
+    const lfoGain = ctx.createGain()
+    lfo.type = 'sine'
+    lfo.frequency.setValueAtTime(4 + amount * 9, now)
+    lfoGain.gain.setValueAtTime(110 + amount * 260, now)
+
+    const ampLfo = ctx.createOscillator()
+    const ampLfoGain = ctx.createGain()
+    ampLfo.type = 'sine'
+    ampLfo.frequency.setValueAtTime(2.2 + amount * 4.8, now)
+    ampLfoGain.gain.setValueAtTime(0.004 + amount * 0.012, now)
+
+    lfo.connect(lfoGain)
+    lfoGain.connect(filter.frequency)
+    ampLfo.connect(ampLfoGain)
+    ampLfoGain.connect(gain.gain)
+
+    osc.connect(filter)
+    filter.connect(gain)
+    gain.connect(ctx.destination)
+
+    const noiseBufferSize = ctx.sampleRate * 1
+    const noiseBuffer = ctx.createBuffer(1, noiseBufferSize, ctx.sampleRate)
+    const noiseData = noiseBuffer.getChannelData(0)
+    for (let i = 0; i < noiseBufferSize; i++) {
+      noiseData[i] = (Math.random() * 2 - 1) * 0.9
+    }
+
+    const noise = ctx.createBufferSource()
+    const noiseFilter = ctx.createBiquadFilter()
+    const noiseGain = ctx.createGain()
+
+    noise.buffer = noiseBuffer
+    noise.loop = true
+
+    noiseFilter.type = 'bandpass'
+    noiseFilter.frequency.setValueAtTime(noiseFilterFreq, now)
+    noiseFilter.Q.setValueAtTime(0.4 + amount * 0.9, now)
+
+    noiseGain.gain.setValueAtTime(0.0001, now)
+
+    noise.connect(noiseFilter)
+    noiseFilter.connect(noiseGain)
+    noiseGain.connect(ctx.destination)
+
+    lfoGain.connect(noiseFilter.frequency)
+    ampLfoGain.connect(noiseGain.gain)
+
+    osc.start(now)
+    lfo.start(now)
+    ampLfo.start(now)
+    noise.start(now)
+
+    gain.gain.setTargetAtTime(toneTargetGain, now, 0.05)
+    noiseGain.gain.setTargetAtTime(noiseTargetGain, now, 0.06)
+
+    this.spinOsc = osc
+    this.spinFilter = filter
+    this.spinGain = gain
+    this.spinLfo = lfo
+    this.spinLfoGain = lfoGain
+    this.spinAmpLfo = ampLfo
+    this.spinAmpLfoGain = ampLfoGain
+    this.spinNoise = noise
+    this.spinNoiseFilter = noiseFilter
+    this.spinNoiseGain = noiseGain
+  }
+
+  stopSpin(immediate: boolean = false) {
+    const ctx = this.audioContext
+    const gain = this.spinGain
+    const osc = this.spinOsc
+    const lfo = this.spinLfo
+    const ampLfo = this.spinAmpLfo
+    const noise = this.spinNoise
+    const noiseGain = this.spinNoiseGain
+
+    this.spinOsc = null
+    this.spinGain = null
+    this.spinFilter = null
+    this.spinLfo = null
+    this.spinLfoGain = null
+    this.spinAmpLfo = null
+    this.spinAmpLfoGain = null
+    this.spinNoise = null
+    this.spinNoiseGain = null
+    this.spinNoiseFilter = null
+
+    if (!ctx) return
+    const now = ctx.currentTime
+    const stopAt = now + (immediate ? 0.02 : 0.14)
+
+    if (gain) {
+      gain.gain.cancelScheduledValues(now)
+      gain.gain.setTargetAtTime(0.0001, now, immediate ? 0.01 : 0.06)
+    }
+    if (noiseGain) {
+      noiseGain.gain.cancelScheduledValues(now)
+      noiseGain.gain.setTargetAtTime(0.0001, now, immediate ? 0.01 : 0.08)
+    }
+
+    osc?.stop(stopAt)
+    lfo?.stop(stopAt)
+    ampLfo?.stop(stopAt)
+    noise?.stop(stopAt)
   }
 
   // Play click sound - short tick
@@ -142,7 +307,98 @@ class SoundManager {
     noise.stop(now + 0.02)
   }
 
-  // Play win sound - firework explosion "BANG" followed by sparkle
+  playFireworkBurst() {
+    if (!this.enabled) return
+    const ctx = this.ensureContext()
+    if (!ctx) return
+
+    const now = ctx.currentTime
+
+    const clickOsc = ctx.createOscillator()
+    const clickGain = ctx.createGain()
+    clickOsc.type = 'square'
+    clickOsc.frequency.setValueAtTime(1800, now)
+    clickGain.gain.setValueAtTime(0.0001, now)
+    clickGain.gain.linearRampToValueAtTime(0.12, now + 0.002)
+    clickGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.02)
+    clickOsc.connect(clickGain)
+    clickGain.connect(ctx.destination)
+    clickOsc.start(now)
+    clickOsc.stop(now + 0.03)
+
+    const kickOsc = ctx.createOscillator()
+    const kickGain = ctx.createGain()
+    kickOsc.type = 'sine'
+    kickOsc.frequency.setValueAtTime(120, now)
+    kickOsc.frequency.exponentialRampToValueAtTime(42, now + 0.16)
+    kickGain.gain.setValueAtTime(0.0001, now)
+    kickGain.gain.linearRampToValueAtTime(0.9, now + 0.006)
+    kickGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.32)
+    kickOsc.connect(kickGain)
+    kickGain.connect(ctx.destination)
+    kickOsc.start(now)
+    kickOsc.stop(now + 0.34)
+
+    const thumpSize = Math.floor(ctx.sampleRate * 0.09)
+    const thumpBuffer = ctx.createBuffer(1, thumpSize, ctx.sampleRate)
+    const thumpData = thumpBuffer.getChannelData(0)
+    for (let i = 0; i < thumpSize; i++) {
+      thumpData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (thumpSize * 0.22))
+    }
+
+    const thump = ctx.createBufferSource()
+    const thumpFilter = ctx.createBiquadFilter()
+    const thumpGain = ctx.createGain()
+    thump.buffer = thumpBuffer
+    thumpFilter.type = 'lowpass'
+    thumpFilter.frequency.setValueAtTime(180, now)
+    thumpFilter.Q.setValueAtTime(0.7, now)
+    thumpGain.gain.setValueAtTime(0.0001, now)
+    thumpGain.gain.linearRampToValueAtTime(0.55, now + 0.008)
+    thumpGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14)
+    thump.connect(thumpFilter)
+    thumpFilter.connect(thumpGain)
+    thumpGain.connect(ctx.destination)
+    thump.start(now)
+    thump.stop(now + 0.1)
+
+    const crackSize = Math.floor(ctx.sampleRate * 0.06)
+    const crackBuffer = ctx.createBuffer(1, crackSize, ctx.sampleRate)
+    const crackData = crackBuffer.getChannelData(0)
+    for (let i = 0; i < crackSize; i++) {
+      crackData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (crackSize * 0.16))
+    }
+
+    const crack = ctx.createBufferSource()
+    const crackFilter = ctx.createBiquadFilter()
+    const crackGain = ctx.createGain()
+    crack.buffer = crackBuffer
+    crackFilter.type = 'highpass'
+    crackFilter.frequency.setValueAtTime(1200, now)
+    crackFilter.Q.setValueAtTime(0.8, now)
+    crackGain.gain.setValueAtTime(0.0001, now)
+    crackGain.gain.linearRampToValueAtTime(0.26, now + 0.004)
+    crackGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08)
+    crack.connect(crackFilter)
+    crackFilter.connect(crackGain)
+    crackGain.connect(ctx.destination)
+    crack.start(now)
+    crack.stop(now + 0.08)
+
+    const tailOsc = ctx.createOscillator()
+    const tailGain = ctx.createGain()
+    tailOsc.type = 'triangle'
+    tailOsc.frequency.setValueAtTime(240, now + 0.03)
+    tailOsc.frequency.exponentialRampToValueAtTime(160, now + 0.22)
+    tailGain.gain.setValueAtTime(0.0001, now + 0.03)
+    tailGain.gain.linearRampToValueAtTime(0.12, now + 0.06)
+    tailGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.26)
+    tailOsc.connect(tailGain)
+    tailGain.connect(ctx.destination)
+    tailOsc.start(now + 0.03)
+    tailOsc.stop(now + 0.28)
+  }
+
   playWin() {
     if (!this.enabled) return
     const ctx = this.ensureContext()
@@ -150,112 +406,51 @@ class SoundManager {
 
     const now = ctx.currentTime
 
-    // EXPLOSION - The "PENG" sound
-    // Layer 1: Deep bass impact (the "boom")
-    const boomOsc = ctx.createOscillator()
-    const boomGain = ctx.createGain()
-    const boomFilter = ctx.createBiquadFilter()
-
-    boomOsc.connect(boomFilter)
-    boomFilter.connect(boomGain)
-    boomGain.connect(ctx.destination)
-
-    boomOsc.type = 'sawtooth'
-    boomOsc.frequency.setValueAtTime(80, now)
-    boomOsc.frequency.exponentialRampToValueAtTime(30, now + 0.15)
-
-    boomFilter.type = 'lowpass'
-    boomFilter.frequency.setValueAtTime(200, now)
-    boomFilter.frequency.exponentialRampToValueAtTime(50, now + 0.2)
-
-    boomGain.gain.setValueAtTime(0.5, now)
-    boomGain.gain.exponentialRampToValueAtTime(0.01, now + 0.3)
-
-    boomOsc.start(now)
-    boomOsc.stop(now + 0.3)
-
-    // Layer 2: White noise burst (the "crack" of explosion)
-    const crackBufferSize = ctx.sampleRate * 0.1
-    const crackBuffer = ctx.createBuffer(1, crackBufferSize, ctx.sampleRate)
-    const crackOutput = crackBuffer.getChannelData(0)
-    for (let i = 0; i < crackBufferSize; i++) {
-      crackOutput[i] = Math.random() * 2 - 1
-    }
-
-    const crack = ctx.createBufferSource()
-    const crackGain = ctx.createGain()
-    const crackFilter = ctx.createBiquadFilter()
-
-    crack.buffer = crackBuffer
-    crack.connect(crackFilter)
-    crackFilter.connect(crackGain)
-    crackGain.connect(ctx.destination)
-
-    crackFilter.type = 'highpass'
-    crackFilter.frequency.value = 1000
-
-    crackGain.gain.setValueAtTime(0.3, now)
-    crackGain.gain.exponentialRampToValueAtTime(0.01, now + 0.1)
-
-    crack.start(now)
-    crack.stop(now + 0.1)
-
-    // Layer 3: Metallic ring (explosion resonance)
-    const ringOsc = ctx.createOscillator()
-    const ringGain = ctx.createGain()
-
-    ringOsc.connect(ringGain)
-    ringGain.connect(ctx.destination)
-
-    ringOsc.type = 'sine'
-    ringOsc.frequency.setValueAtTime(200, now + 0.05)
-    ringOsc.frequency.exponentialRampToValueAtTime(150, now + 0.3)
-
-    ringGain.gain.setValueAtTime(0, now + 0.05)
-    ringGain.gain.linearRampToValueAtTime(0.2, now + 0.08)
-    ringGain.gain.exponentialRampToValueAtTime(0.01, now + 0.4)
-
-    ringOsc.start(now + 0.05)
-    ringOsc.stop(now + 0.4)
-
-    // SPARKLE EFFECTS - High pitch chimes after explosion
-    const sparkleFreqs = [2093, 2637, 3136, 4186]
-    sparkleFreqs.forEach((freq, index) => {
+    const freqs = [523.25, 659.25, 783.99, 1046.5]
+    freqs.forEach((freq, index) => {
       const osc = ctx.createOscillator()
       const gain = ctx.createGain()
 
       osc.connect(gain)
       gain.connect(ctx.destination)
 
-      osc.frequency.value = freq
       osc.type = 'sine'
+      osc.frequency.setValueAtTime(freq, now)
+      osc.detune.setValueAtTime((Math.random() - 0.5) * 10, now)
 
-      const startTime = now + 0.15 + index * 0.04
-      gain.gain.setValueAtTime(0, startTime)
-      gain.gain.linearRampToValueAtTime(0.08, startTime + 0.01)
-      gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.3)
+      const start = now + index * 0.055
+      gain.gain.setValueAtTime(0, start)
+      gain.gain.linearRampToValueAtTime(0.16, start + 0.012)
+      gain.gain.exponentialRampToValueAtTime(0.01, start + 0.32)
 
-      osc.start(startTime)
-      osc.stop(startTime + 0.35)
+      osc.start(start)
+      osc.stop(start + 0.38)
     })
 
-    // Additional sparkle with triangle wave for brightness
-    const brightSparkle = ctx.createOscillator()
-    const brightGain = ctx.createGain()
+    const sparkleBufferSize = Math.floor(ctx.sampleRate * 0.08)
+    const sparkleBuffer = ctx.createBuffer(1, sparkleBufferSize, ctx.sampleRate)
+    const sparkleOutput = sparkleBuffer.getChannelData(0)
+    for (let i = 0; i < sparkleBufferSize; i++) {
+      sparkleOutput[i] = (Math.random() * 2 - 1) * Math.exp(-i / (sparkleBufferSize * 0.25))
+    }
 
-    brightSparkle.connect(brightGain)
-    brightGain.connect(ctx.destination)
+    const sparkle = ctx.createBufferSource()
+    const sparkleGain = ctx.createGain()
+    const sparkleFilter = ctx.createBiquadFilter()
 
-    brightSparkle.type = 'triangle'
-    brightSparkle.frequency.setValueAtTime(1500, now + 0.2)
-    brightSparkle.frequency.linearRampToValueAtTime(3000, now + 0.25)
+    sparkle.buffer = sparkleBuffer
+    sparkle.connect(sparkleFilter)
+    sparkleFilter.connect(sparkleGain)
+    sparkleGain.connect(ctx.destination)
 
-    brightGain.gain.setValueAtTime(0, now + 0.2)
-    brightGain.gain.linearRampToValueAtTime(0.1, now + 0.22)
-    brightGain.gain.exponentialRampToValueAtTime(0.01, now + 0.4)
+    sparkleFilter.type = 'highpass'
+    sparkleFilter.frequency.setValueAtTime(2600, now)
 
-    brightSparkle.start(now + 0.2)
-    brightSparkle.stop(now + 0.4)
+    sparkleGain.gain.setValueAtTime(0.09, now + 0.1)
+    sparkleGain.gain.exponentialRampToValueAtTime(0.01, now + 0.28)
+
+    sparkle.start(now + 0.1)
+    sparkle.stop(now + 0.24)
   }
 
   // Legacy method for compatibility

@@ -6,7 +6,6 @@ import type { Participant, DrawStatus } from '@/types'
 import { ArrowLeft } from 'lucide-react'
 import { soundManager } from '@/lib/sound'
 import BackgroundEffects from '@/components/ui/BackgroundEffects'
-import { computeWinnerLayout } from '@/lib/winnerLayout'
 
 export default function DrawPage() {
   const { prizeId } = useParams<{ prizeId: string }>()
@@ -26,16 +25,11 @@ export default function DrawPage() {
   const [speed, setSpeed] = useState(0.5)
   const [showAllWinners, setShowAllWinners] = useState(false)
   const [cloudSize, setCloudSize] = useState({ width: 0, height: 0 })
-  const [flyItems, setFlyItems] = useState<Array<{ id: string; name: string; employeeId: string; fromX: number; fromY: number; toX: number; toY: number; size: number; index: number }>>([])
-  const [transitioningIds, setTransitioningIds] = useState<Set<string>>(new Set())
   
   const animRef = useRef<number>(0)
   const containerRef = useRef<HTMLDivElement>(null)
-  const winnersListRef = useRef<HTMLDivElement>(null)
   const cloudItemRefs = useRef<Map<string, HTMLDivElement>>(new Map())
-  const listItemRefs = useRef<Map<string, HTMLDivElement>>(new Map())
-  const flyItemRefs = useRef<Map<string, HTMLDivElement>>(new Map())
-  const lastTransitionKeyRef = useRef('')
+  const winnersListRef = useRef<HTMLDivElement>(null)
 
   const availableParticipants = store.getAvailableParticipants()
   const drawCount = store.settings.drawMode === 'single' ? 1 : remaining
@@ -102,14 +96,16 @@ export default function DrawPage() {
     }
   }, [speed, status])
 
-  const cloudLayout = useMemo(() => {
-    const width = cloudSize.width || containerRef.current?.clientWidth || window.innerWidth
-    return computeWinnerLayout(currentWinners.map(w => w.id), width)
-  }, [currentWinners, cloudSize.width])
-
-  const cloudLayoutMap = useMemo(() => {
-    return new Map(cloudLayout.items.map(item => [item.id, item]))
-  }, [cloudLayout.items])
+  useEffect(() => {
+    if (status === 'drawing' || status === 'slowing') {
+      const intensity = Math.min(1, Math.max(0.25, speed / 8))
+      soundManager.startSpin(intensity)
+      return () => {
+        soundManager.stopSpin()
+      }
+    }
+    soundManager.stopSpin()
+  }, [status, speed])
 
   const getCloudItemStyle = useCallback((index: number, total: number, isWinner: boolean) => {
     // Hide winners when finished (they move to top list)
@@ -156,7 +152,7 @@ export default function DrawPage() {
       fontSize: `${Math.max(12, 14 * baseScale)}px`,
       transition: status === 'highlighting' ? 'opacity 0.5s ease-out' : 'none'
     }
-  }, [rotation, status, displayParticipants, cloudLayoutMap, cloudSize.width, cloudSize.height])
+  }, [rotation, status, displayParticipants, cloudSize.width, cloudSize.height])
 
   const handleDraw = () => {
     // Allow drawing if idle OR finished (for continuous draw), as long as prizes remain
@@ -219,7 +215,8 @@ export default function DrawPage() {
     setTimeout(() => {
       setSpeed(0)
       setStatus('highlighting')
-      soundManager.playWin()
+      soundManager.playFireworkBurst()
+      setTimeout(() => soundManager.playWin(), 120)
       
       // Haptic feedback if available
       if (navigator.vibrate) {
@@ -227,6 +224,11 @@ export default function DrawPage() {
       }
       
     }, 3500)
+
+    setTimeout(() => {
+      setSpeed(0.5)
+      setStatus('finished')
+    }, 4700)
   }
 
   const handleContinue = () => {
@@ -237,82 +239,6 @@ export default function DrawPage() {
       handleDraw()
     }, 100)
   }
-
-  useEffect(() => {
-    if (status !== 'highlighting' || currentWinners.length === 0) return
-    const key = `${prizeId}-${currentWinners.map(w => w.id).join('|')}`
-    if (lastTransitionKeyRef.current === key) return
-    lastTransitionKeyRef.current = key
-
-    const items: Array<{ id: string; name: string; employeeId: string; fromX: number; fromY: number; toX: number; toY: number; size: number; index: number }> = []
-    currentWinners.forEach((w, index) => {
-      const fromEl = cloudItemRefs.current.get(w.id)
-      const toEl = listItemRefs.current.get(w.id)
-      if (!toEl) return
-      const fromRect = fromEl?.getBoundingClientRect()
-      const toRect = toEl.getBoundingClientRect()
-      const cloudRect = containerRef.current?.getBoundingClientRect()
-      const listRect = winnersListRef.current?.getBoundingClientRect()
-      const layoutItem = cloudLayoutMap.get(w.id)
-      const fromRectValid = fromRect && fromRect.width > 0 && fromRect.height > 0
-      const fromX = fromRectValid
-        ? fromRect.left + fromRect.width / 2
-        : layoutItem && cloudRect
-          ? cloudRect.left + layoutItem.x
-          : (cloudRect ? cloudRect.left + cloudRect.width / 2 : window.innerWidth / 2)
-      const fromY = fromRectValid
-        ? fromRect.top + fromRect.height / 2
-        : layoutItem && cloudRect
-          ? cloudRect.top + layoutItem.y
-          : (cloudRect ? cloudRect.top + cloudRect.height / 2 : window.innerHeight / 2)
-      const toX = toRect ? toRect.left + toRect.width / 2 : (listRect ? listRect.left + listRect.width / 2 : window.innerWidth / 2)
-      const toY = toRect ? toRect.top + toRect.height / 2 : (listRect ? listRect.top + listRect.height / 2 : window.innerHeight / 2)
-      items.push({
-        id: w.id,
-        name: w.name,
-        employeeId: w.employeeId,
-        fromX,
-        fromY,
-        toX,
-        toY,
-        size: toRect ? Math.max(60, Math.min(100, toRect.width)) : 80,
-        index,
-      })
-    })
-
-    if (items.length > 0) {
-      setFlyItems(items)
-      setTransitioningIds(new Set(items.map(item => item.id)))
-    }
-  }, [status, currentWinners, prizeId, cloudLayoutMap])
-
-  useEffect(() => {
-    if (flyItems.length === 0) return
-    const remaining = new Set(flyItems.map(item => item.id))
-    flyItems.forEach(item => {
-      const el = flyItemRefs.current.get(item.id)
-      if (!el) return
-      const animation = el.animate(
-        [
-          { transform: `translate(${item.fromX}px, ${item.fromY}px) scale(1)`, opacity: 1 },
-          { transform: `translate(${item.toX}px, ${item.toY}px) scale(0.9)`, opacity: 1 }
-        ],
-        { duration: 1200, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' }
-      )
-      animation.onfinish = () => {
-        setTransitioningIds(prev => {
-          const next = new Set(prev)
-          next.delete(item.id)
-          return next
-        })
-        remaining.delete(item.id)
-        if (remaining.size === 0) {
-          setFlyItems([])
-          setStatus('finished')
-        }
-      }
-    })
-  }, [flyItems])
 
   if (!prize) {
     return (
@@ -336,34 +262,14 @@ export default function DrawPage() {
           const rect = containerRef.current?.getBoundingClientRect()
           const width = rect?.width || window.innerWidth
           const height = rect?.height || window.innerHeight
-          const left = (rect?.left || 0) + width * 0.3
-          const right = (rect?.left || 0) + width * 0.7
-          const y = (rect?.top || 0) + height * 0.45
-          return [{ x: left, y }, { x: right, y }]
+          const left = rect?.left || 0
+          const top = rect?.top || 0
+          // 云团中间炸开，视觉集中更有惊喜感
+          return [
+            { x: left + width * 0.5, y: top + height * 0.5 }, // 云团中心
+          ]
         })()}
       />
-      {flyItems.length > 0 && (
-        <div className="pointer-events-none fixed inset-0 z-30">
-          {flyItems.map(item => (
-            <div
-              key={item.id}
-              ref={el => {
-                if (el) flyItemRefs.current.set(item.id, el)
-                else flyItemRefs.current.delete(item.id)
-              }}
-              className="absolute px-3 py-3 rounded-xl bg-gradient-to-r from-yellow-400 to-orange-500 text-white flex items-center justify-center gap-2 shadow-lg"
-              style={{
-                transform: `translate(${item.fromX}px, ${item.fromY}px) scale(1)`,
-                opacity: 1,
-              }}
-            >
-              <span className="text-lg font-bold truncate max-w-[80px]">{item.name}</span>
-              <span className="opacity-90 text-xs border-l border-white/30 pl-2">{item.employeeId}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      
       {/* Adaptive Title Status Bar */}
       <header className="flex-none relative z-10 flex items-center justify-between px-4 sm:px-8 py-4 sm:py-6 bg-background/10 backdrop-blur-[2px]">
         <button
@@ -405,7 +311,14 @@ export default function DrawPage() {
       <div className="flex-none relative z-10 flex flex-col items-center justify-center py-4 min-h-[100px]">
         {/* Always show winners if there are any */}
         {(status === 'finished' || status === 'idle' || status === 'preparing' || status === 'drawing' || status === 'slowing' || status === 'highlighting') && prizeWinners.length > 0 && (
-          <div ref={winnersListRef} className="flex flex-col items-center gap-2 w-full max-w-[1400px] px-4">
+          <div
+            ref={winnersListRef}
+            className="flex flex-col items-center gap-2 w-full max-w-[1400px] px-4 transition-all duration-500 ease-out"
+            style={{
+              opacity: status === 'finished' || status === 'idle' ? 1 : 0,
+              transform: status === 'finished' || status === 'idle' ? 'translateY(0)' : 'translateY(10px)'
+            }}
+          >
             <div className={`flex flex-wrap justify-center gap-4 w-full transition-all duration-300 ease-in-out ${showAllWinners ? '' : 'overflow-hidden'}`}>
             {(() => {
               // Logic to filter and slice winners
@@ -413,7 +326,7 @@ export default function DrawPage() {
               const visibleWinners = prizeWinners.filter((w, index) => {
                  if (!w || !w.participant) return false
                  // Hide winners that are newly added (index >= preDrawCount) during the draw
-                 if ((status === 'preparing' || status === 'drawing' || status === 'slowing') && index >= preDrawCount) {
+                 if ((status === 'preparing' || status === 'drawing' || status === 'slowing' || status === 'highlighting') && index >= preDrawCount) {
                    return false
                  }
                  return true
@@ -430,15 +343,7 @@ export default function DrawPage() {
                       return (
                         <div
                           key={w.id}
-                          ref={el => {
-                            if (el) listItemRefs.current.set(w.participantId, el)
-                            else listItemRefs.current.delete(w.participantId)
-                          }}
-                          className={`bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-3 py-3 rounded-xl flex items-center justify-center gap-2 transform transition-all duration-500 hover:scale-105 min-w-[140px] ${isNew ? 'animate-fly-in' : ''}`}
-                          style={{
-                            animationDelay: isNew ? `${index * 100}ms` : '0ms',
-                            opacity: transitioningIds.has(w.participantId) ? 0 : 1,
-                          }}
+                          className={`bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-3 py-3 rounded-xl flex items-center justify-center gap-2 transform transition-all duration-500 hover:scale-105 min-w-[140px] ${isNew ? 'animate-fade-in-up' : ''}`}
                         >
                         <span className="text-lg font-bold truncate max-w-[80px]">{w.participant.name}</span>
                         <span className="opacity-90 text-xs border-l border-white/30 pl-2">{w.participant.employeeId}</span>
@@ -454,7 +359,7 @@ export default function DrawPage() {
             {(() => {
                const visibleCount = prizeWinners.filter((w, index) => {
                  if (!w || !w.participant) return false
-                 if ((status === 'preparing' || status === 'drawing' || status === 'slowing') && index >= preDrawCount) {
+                 if ((status === 'preparing' || status === 'drawing' || status === 'slowing' || status === 'highlighting') && index >= preDrawCount) {
                    return false
                  }
                  return true
@@ -463,9 +368,9 @@ export default function DrawPage() {
                if (visibleCount > 16) {
                  return (
                    <div className="flex justify-center w-full mt-4">
-                     <button
+                      <button
                        onClick={() => setShowAllWinners(!showAllWinners)}
-                       className="px-6 py-2 rounded-full bg-white/20 hover:bg-white/30 text-white text-sm backdrop-blur-sm transition-colors flex items-center gap-2 border border-white/10 shadow-sm"
+                        className="px-4 py-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white text-xs backdrop-blur-sm transition-colors flex items-center gap-2 border border-white/10 shadow-sm"
                      >
                        {showAllWinners ? (
                          <>
@@ -489,7 +394,7 @@ export default function DrawPage() {
       </div>
 
       {/* Main Cloud Area - Centered and occupying available space */}
-      <main className="flex-1 relative z-10 flex items-center justify-center overflow-hidden w-full">
+      <main className="flex-1 min-h-0 relative z-10 flex items-center justify-center overflow-hidden w-full pb-[180px]">
         <div
           ref={containerRef}
           className="cloud-container relative w-full h-full max-w-5xl flex items-center justify-center perspective-[1000px]"
@@ -527,7 +432,7 @@ export default function DrawPage() {
       </main>
 
       {/* Footer - Fixed/Sticky Bottom Area */}
-      <footer className="flex-none relative z-20 px-4 pb-[40px] pt-4 bg-gradient-to-t from-background via-background/90 to-transparent flex flex-col items-center justify-end">
+      <footer className="fixed inset-x-0 bottom-0 z-30 px-4 pb-6 pt-3 bg-gradient-to-t from-background via-background/90 to-transparent flex flex-col items-center">
         <div className="w-full max-w-md mx-auto space-y-4">
           {status === 'idle' && updatedRemaining > 0 && (
             <>
@@ -592,13 +497,6 @@ export default function DrawPage() {
         }
         .animate-pulse-scale {
           animation: pulse-scale 2s infinite ease-in-out;
-        }
-        @keyframes fly-in {
-          0% { opacity: 0; transform: translateY(200px) scale(0.1); }
-          100% { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        .animate-fly-in {
-          animation: fly-in 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
         }
         .pb-safe {
           padding-bottom: env(safe-area-inset-bottom, 20px);

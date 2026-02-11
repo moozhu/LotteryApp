@@ -175,18 +175,35 @@ export default function ShapeFireworks({ trigger, onComplete, auto = true, enabl
     fireworksRef.current.push({ particles, x, y })
   }, [])
 
-  const createConfettiBurst = useCallback((x: number, y: number, count: number) => {
+  const createConfettiBurst = useCallback((x: number, y: number, count: number, targetX?: number) => {
     const particles: ConfettiParticle[] = []
+    
+    // 如果有目标位置，计算向目标喷射的角度
+    let baseAngle: number
+    let spread: number
+    
+    if (targetX !== undefined) {
+      // 向中间目标喷射
+      const dx = targetX - x
+      const dy = -100 // 向上喷射一点
+      baseAngle = Math.atan2(dy, dx)
+      spread = Math.PI * 0.5 // 60度扇形扩散
+    } else {
+      // 默认向上喷射
+      baseAngle = -Math.PI / 2
+      spread = Math.PI * 0.7
+    }
+    
     for (let i = 0; i < count; i++) {
-      const angle = Math.random() * Math.PI * 2
-      const speed = Math.random() * 6 + 3
+      const angle = baseAngle + (Math.random() - 0.5) * spread
+      const speed = Math.random() * 7 + 5
       const ttl = 2000 + Math.random() * 700
       const shape = SHAPES[Math.floor(Math.random() * SHAPES.length)]
       const color = VIBRANT_COLORS[Math.floor(Math.random() * VIBRANT_COLORS.length)]
       const size = Math.random() * 10 + 6
       const drag = 0.985 - Math.random() * 0.02
-      const gravity = 0.22 + Math.random() * 0.12
-      const wind = (Math.random() - 0.5) * 0.08
+      const gravity = 0.18 + Math.random() * 0.1
+      const wind = (Math.random() - 0.5) * 0.05
       particles.push({
         x,
         y,
@@ -228,10 +245,17 @@ export default function ShapeFireworks({ trigger, onComplete, auto = true, enabl
 
         const totalCount = 160 + Math.floor(Math.random() * 40)
         const perBurst = Math.max(90, Math.floor(totalCount / points.length))
+        
+        // 计算中间目标位置（云团中心）
+        const centerX = points.length >= 2 
+          ? (points[0].x + points[1].x) / 2 
+          : width * 0.5
+        
         points.forEach(point => {
           const x = Math.max(0, Math.min(width, point.x))
           const y = Math.max(0, Math.min(height, point.y))
-          createConfettiBurst(x, y, perBurst)
+          // 传递目标位置，让烟花向中间喷射
+          createConfettiBurst(x, y, perBurst, centerX)
         })
       }
     }
