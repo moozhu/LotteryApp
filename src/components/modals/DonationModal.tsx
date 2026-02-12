@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from 'react'
-import { X, Coffee } from 'lucide-react'
+import { X, User, Github, Mail, Heart } from 'lucide-react'
 
 interface DonationModalProps {
   open: boolean
@@ -41,23 +41,46 @@ export function DonationModal({ open, onClose }: DonationModalProps) {
 
         {/* Content - centered */}
         <div className="flex flex-col items-center text-center pt-2">
-          {/* Title with icon */}
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-10 h-10 rounded-full bg-gradient-primary flex items-center justify-center">
-              <Coffee className="w-5 h-5 text-white" />
-            </div>
-            <h2 className="text-lg font-bold text-foreground">请 moozhu 喝一杯咖啡</h2>
+          {/* Avatar */}
+          <div className="w-20 h-20 rounded-full bg-gradient-primary flex items-center justify-center mb-4 shadow-lg">
+            <User className="w-10 h-10 text-white" />
           </div>
 
-          {/* Thank you message */}
+          {/* Author Name */}
+          <h2 className="text-xl font-bold text-foreground mb-2">moozhu</h2>
+
+          {/* Description */}
           <p className="text-sm text-muted-foreground mb-6">
-            感谢您的使用，谢谢支持
+            创作者 · 前端开发者
           </p>
 
-          {/* QR Code Placeholder */}
-          <div className="w-48 h-48 rounded-2xl bg-muted border-2 border-dashed border-border flex flex-col items-center justify-center gap-2">
-            <span className="text-4xl text-muted-foreground/50">📱</span>
-            <span className="text-sm text-muted-foreground">打赏二维码</span>
+          {/* Info Cards */}
+          <div className="w-full space-y-3">
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/50">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Github className="w-4 h-4 text-primary" />
+              </div>
+              <div className="text-left">
+                <p className="text-xs text-muted-foreground">GitHub</p>
+                <p className="text-sm font-medium text-foreground">@moozhu</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/50">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Mail className="w-4 h-4 text-primary" />
+              </div>
+              <div className="text-left">
+                <p className="text-xs text-muted-foreground">邮箱</p>
+                <p className="text-sm font-medium text-foreground">moozhu@example.com</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Thank you */}
+          <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
+            <Heart className="w-4 h-4 text-red-500 fill-red-500" />
+            <span>感谢您的使用与支持</span>
           </div>
         </div>
       </div>

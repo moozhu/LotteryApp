@@ -26,7 +26,8 @@ export default function DrawPage() {
   const [showAllWinners, setShowAllWinners] = useState(false)
   const [cloudSize, setCloudSize] = useState({ width: 0, height: 0 })
   const [showPrizeFireworks, setShowPrizeFireworks] = useState(false)
-  
+  const [flyInActive, setFlyInActive] = useState(false)
+
   const animRef = useRef<number>(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const cloudItemRefs = useRef<Map<string, HTMLDivElement>>(new Map())
@@ -70,7 +71,7 @@ export default function DrawPage() {
     let tickCounter = 0
     const animate = () => {
       if (!running) return
-      
+
       // Stop rotation when highlighting winners
       if (status !== 'highlighting') {
         setRotation(prev => prev + speed)
@@ -162,7 +163,7 @@ export default function DrawPage() {
     // 1. Prepare
     setStatus('preparing')
     setPreDrawCount(prizeWinners.length)
-    
+
     // 2. Draw (Store updates immediately)
     const winners = store.drawWinners(prizeId!, drawCount)
     if (winners.length === 0) return
@@ -176,13 +177,13 @@ export default function DrawPage() {
       // Use a limited set for cloud (e.g. 80)
       // If we have more than 80, we slice.
       // But we must ensure winners are in the slice.
-      
+
       const winnerIds = new Set(winners.map(w => w.id))
       // Filter out winners that are already in the display list
       const missingParticipants = winners.filter(w => !newDisplay.find(p => p && p.id === w.id))
-      
+
       let finalDisplay = newDisplay
-      
+
       if (missingParticipants.length > 0) {
         // We need to add them. 
         // If list is small, just push.
@@ -190,7 +191,7 @@ export default function DrawPage() {
         // Let's just prepend them to ensure they are in the first N items
         finalDisplay = [...missingParticipants, ...newDisplay]
       }
-      
+
       // Limit to 80 for performance/visuals
       if (finalDisplay.length > 80) {
         // Ensure winners are kept
@@ -198,7 +199,7 @@ export default function DrawPage() {
         // unless there are > 80 winners (unlikely)
         finalDisplay = finalDisplay.slice(0, 80)
       }
-      
+
       return finalDisplay
     })
 
@@ -220,8 +221,12 @@ export default function DrawPage() {
     }, 3500)
 
     setTimeout(() => {
+      // 触发飞入动画
+      setFlyInActive(true)
       setSpeed(0.5)
       setStatus('finished')
+      // 飞入动画结束后恢复
+      setTimeout(() => setFlyInActive(false), 800)
     }, 4700)
   }
 
@@ -262,9 +267,9 @@ export default function DrawPage() {
           const left = rect?.left || 0
           const top = rect?.top || 0
           // 云团中心位置
-          return { 
-            x: left + width * 0.5, 
-            y: top + height * 0.5 
+          return {
+            x: left + width * 0.5,
+            y: top + height * 0.5
           }
         })()}
         duration={4000}
@@ -273,36 +278,43 @@ export default function DrawPage() {
       <header className="flex-none relative z-10 flex items-center justify-between px-4 sm:px-8 py-4 sm:py-6 bg-background/10 backdrop-blur-[2px]">
         <button
           onClick={() => navigate('/')}
-          className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium hover:bg-accent/50 transition-colors text-foreground"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-display font-bold bg-gradient-primary text-primary-foreground shadow-md hover:shadow-glow hover:scale-105 active:scale-95 transition-all duration-200"
         >
-          <ArrowLeft size={20} />
+          <ArrowLeft size={18} />
           <span className="hidden sm:inline">返回</span>
         </button>
-        
-        {/* Enlarged Title - Single Row Layout */}
+
+        {/* Enlarged Title - Single Row Layout + 抽奖数量跟随标题 */}
         <div className="flex items-center gap-4 text-foreground animate-fade-in">
           {prize.prizeImage ? (
-            <img 
-              src={prize.prizeImage} 
-              alt={prize.prizeName} 
+            <img
+              src={prize.prizeImage}
+              alt={prize.prizeName}
               className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-xl border-2 border-white/20"
             />
           ) : (
             <span className="text-4xl sm:text-5xl filter drop-shadow-md">{icon}</span>
           )}
-          
+
           <div className="flex flex-row items-baseline gap-3">
             <span className="font-display font-bold text-3xl sm:text-4xl tracking-wide filter drop-shadow-sm">
               {prize.name}
             </span>
-            <span className="text-lg sm:text-xl text-muted-foreground/90 font-medium">
+            <span className="font-body text-lg sm:text-xl text-muted-foreground/90 font-medium">
               {prize.prizeName}
+            </span>
+            {/* 抽奖数量跟随标题 */}
+            <span className="font-body text-base sm:text-lg text-foreground/80 bg-background/20 px-3 py-1 rounded-full backdrop-blur-md border border-white/10">
+              {drawn} / {prize.count}
             </span>
           </div>
         </div>
-        
-        <div className="text-base sm:text-lg text-foreground/80 font-medium font-mono bg-background/20 px-3 py-1 rounded-full backdrop-blur-md border border-white/10">
-          {drawn} / {prize.count}
+
+        {/* 右上角：实时参与人数按钮 */}
+        <div className="text-sm sm:text-base text-foreground/90 font-medium font-body bg-primary/20 hover:bg-primary/30 px-4 py-2 rounded-xl backdrop-blur-md border border-primary/20 transition-colors cursor-default flex items-center gap-2">
+          <span className="inline-block w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+          <span>参与人数</span>
+          <span className="font-body font-bold text-primary text-base sm:text-lg">{availableParticipants.length}</span>
         </div>
       </header>
 
@@ -319,73 +331,78 @@ export default function DrawPage() {
             }}
           >
             <div className={`flex flex-wrap justify-center gap-4 w-full ${showAllWinners ? '' : 'overflow-hidden'}`}>
-            {(() => {
-              // Logic to filter and slice winners
-              // 1. Filter visible winners based on logic (hide current batch if not finished/idle)
-              const visibleWinners = prizeWinners.filter((w, index) => {
-                 if (!w || !w.participant) return false
-                 // Hide winners that are newly added (index >= preDrawCount) during the draw
-                 if ((status === 'preparing' || status === 'drawing' || status === 'slowing' || status === 'highlighting') && index >= preDrawCount) {
-                   return false
-                 }
-                 return true
-              })
+              {(() => {
+                // 1. Filter visible winners
+                const visibleWinners = prizeWinners.filter((w, index) => {
+                  if (!w || !w.participant) return false
+                  if ((status === 'preparing' || status === 'drawing' || status === 'slowing' || status === 'highlighting') && index >= preDrawCount) {
+                    return false
+                  }
+                  return true
+                })
 
-              // 2. Slice if not showAll
-              const displayList = showAllWinners ? visibleWinners : visibleWinners.slice(0, 16)
-              
-              return (
+                // 2. Slice if not showAll
+                const displayList = showAllWinners ? visibleWinners : visibleWinners.slice(0, 16)
+
+                return (
                   <>
                     {displayList.map((w, index) => {
                       if (!w || !w.participant) return null
+                      // 判断是否为新中奖者（需要飞入动画）
+                      const isNewWinner = index >= preDrawCount && flyInActive
                       return (
                         <div
                           key={w.id}
-                          className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-3 py-3 rounded-xl flex items-center justify-center gap-2 transform transition-all duration-500 hover:scale-105 min-w-[140px]"
+                          className={`bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-3 py-3 rounded-xl flex items-center justify-center gap-2 min-w-[140px] hover:scale-105 transition-all
+                            ${isNewWinner ? 'animate-winner-fly-in' : 'transform duration-500'}
+                          `}
+                          style={isNewWinner ? {
+                            animationDelay: `${(index - preDrawCount) * 120}ms`,
+                          } : undefined}
                         >
-                        <span className="text-lg font-bold truncate max-w-[80px]">{w.participant.name}</span>
-                        <span className="opacity-90 text-xs border-l border-white/30 pl-2">{w.participant.employeeId}</span>
-                      </div>
-                    )
-                  })}
-                </>
-              )
-            })()}
+                          <span className="font-body text-lg font-bold truncate max-w-[80px]">{w.participant.name}</span>
+                          <span className="font-body opacity-90 text-xs border-l border-white/30 pl-2">{w.participant.employeeId}</span>
+                        </div>
+                      )
+                    })}
+                  </>
+                )
+              })()}
             </div>
-            
+
             {/* Show More Toggle */}
             {(() => {
-               const visibleCount = prizeWinners.filter((w, index) => {
-                 if (!w || !w.participant) return false
-                 if ((status === 'preparing' || status === 'drawing' || status === 'slowing' || status === 'highlighting') && index >= preDrawCount) {
-                   return false
-                 }
-                 return true
-               }).length
-               
-               if (visibleCount > 16) {
-                 return (
-                   <div className="flex justify-center w-full mt-4">
-                      <button
-                       onClick={() => setShowAllWinners(!showAllWinners)}
-                        className="px-4 py-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white text-xs backdrop-blur-sm transition-colors flex items-center gap-2 border border-white/10 shadow-sm"
-                     >
-                       {showAllWinners ? (
-                         <>
-                           <span>收起名单</span>
-                           <span className="text-xs opacity-70">▲</span>
-                         </>
-                       ) : (
-                         <>
-                           <span>显示更多 ({visibleCount - 16})</span>
-                           <span className="text-xs opacity-70">▼</span>
-                         </>
-                       )}
-                     </button>
-                   </div>
-                 )
-               }
-               return null
+              const visibleCount = prizeWinners.filter((w, index) => {
+                if (!w || !w.participant) return false
+                if ((status === 'preparing' || status === 'drawing' || status === 'slowing' || status === 'highlighting') && index >= preDrawCount) {
+                  return false
+                }
+                return true
+              }).length
+
+              if (visibleCount > 16) {
+                return (
+                  <div className="flex justify-center w-full mt-4">
+                    <button
+                      onClick={() => setShowAllWinners(!showAllWinners)}
+                      className="px-4 py-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white text-xs backdrop-blur-sm transition-colors flex items-center gap-2 border border-white/10 shadow-sm"
+                    >
+                      {showAllWinners ? (
+                        <>
+                          <span>收起名单</span>
+                          <span className="text-xs opacity-70">▲</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>显示更多 ({visibleCount - 16})</span>
+                          <span className="text-xs opacity-70">▼</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )
+              }
+              return null
             })()}
           </div>
         )}
@@ -399,10 +416,10 @@ export default function DrawPage() {
         >
           <div className="cloud-sphere relative w-full h-full flex items-center justify-center preserve-3d">
             {displayParticipants.slice(0, 80).map((p, i) => {
-               const isWinner = currentWinnerIds.has(p.id)
-               const style = getCloudItemStyle(i, Math.min(displayParticipants.length, 80), isWinner)
-               
-               return (
+              const isWinner = currentWinnerIds.has(p.id)
+              const style = getCloudItemStyle(i, Math.min(displayParticipants.length, 80), isWinner)
+
+              return (
                 <div
                   key={p.id}
                   ref={el => {
@@ -410,8 +427,8 @@ export default function DrawPage() {
                     else cloudItemRefs.current.delete(p.id)
                   }}
                   className={`cloud-item absolute flex items-center justify-center px-4 py-2 rounded-xl font-body font-medium whitespace-nowrap transition-colors duration-300
-                    ${isWinner && status === 'highlighting' 
-                      ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white shadow-[0_0_30px_rgba(255,165,0,0.6)] border-2 border-white' 
+                    ${isWinner && status === 'highlighting'
+                      ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white shadow-[0_0_30px_rgba(255,165,0,0.6)] border-2 border-white'
                       : 'bg-card/90 text-foreground border border-white/10 shadow-sm backdrop-blur-sm'
                     }
                   `}
@@ -453,10 +470,10 @@ export default function DrawPage() {
 
           {(status === 'drawing' || status === 'preparing' || status === 'slowing') && (
             <div className="w-full py-4 sm:py-5 rounded-2xl text-xl sm:text-2xl font-bold bg-muted/50 text-muted-foreground border-2 border-primary/20 flex items-center justify-center gap-3 animate-pulse">
-               <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
-               <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-               <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
-               <span>抽奖中...</span>
+              <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
+              <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+              <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
+              <span>抽奖中...</span>
             </div>
           )}
 
@@ -472,15 +489,15 @@ export default function DrawPage() {
               )}
               <button
                 onClick={() => navigate('/')}
-                className="flex-1 py-3 sm:py-4 rounded-xl text-lg font-medium border-2 border-border/50 hover:bg-accent hover:border-accent transition-all"
+                className="flex-1 py-3 sm:py-4 rounded-xl text-lg font-display font-bold bg-white/40 dark:bg-white/10 text-primary border-2 border-primary/30 hover:bg-primary/10 hover:border-primary/50 transition-all shadow-sm hover:shadow-md backdrop-blur-md flex items-center justify-center gap-2 group"
               >
-                返回首页
+                <span>🏠</span> 返回首页
               </button>
             </div>
           )}
         </div>
       </footer>
-      
+
       {/* Global Style for 3D preserve */}
       <style>{`
         .preserve-3d {
@@ -498,6 +515,29 @@ export default function DrawPage() {
         }
         .pb-safe {
           padding-bottom: env(safe-area-inset-bottom, 20px);
+        }
+        @keyframes winner-fly-in {
+          0% {
+            opacity: 0;
+            transform: translateY(80px) scale(0.3);
+            filter: blur(4px);
+          }
+          40% {
+            opacity: 0.7;
+            transform: translateY(-10px) scale(1.08);
+            filter: blur(0px);
+          }
+          70% {
+            transform: translateY(4px) scale(0.97);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            filter: blur(0px);
+          }
+        }
+        .animate-winner-fly-in {
+          animation: winner-fly-in 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) both;
         }
       `}</style>
     </div>

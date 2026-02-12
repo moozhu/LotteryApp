@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLotteryStore } from '@/store/lottery'
 import BackgroundEffects from '@/components/ui/BackgroundEffects'
-import { Users, Trophy, Settings, Maximize, RotateCcw, Gift, Coffee } from 'lucide-react'
+import { Users, Trophy, Settings, Maximize, RotateCcw, Gift, User } from 'lucide-react'
 import { PRIZE_ICONS } from '@/types'
 import { WinnerListModal } from '@/components/modals/WinnerListModal'
 import { ResetConfirmModal } from '@/components/modals/ResetConfirmModal'
@@ -250,19 +250,10 @@ export default function HomePage() {
         </div>
       </main>
 
-      {/* Donation Entry */}
+      {/* Author Info */}
       {settings.showDonation && (
         <footer className="relative z-10 py-6 text-center">
-          <div className="flex items-center justify-center gap-3">
-            <span className="text-sm text-muted-foreground">请 moozhu 喝一杯咖啡</span>
-            <button
-              onClick={() => setShowDonation(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
-            >
-              <Coffee className="w-3.5 h-3.5" />
-              <span>请客</span>
-            </button>
-          </div>
+          <span className="text-sm text-muted-foreground">创作者：moozhu</span>
         </footer>
       )}
 

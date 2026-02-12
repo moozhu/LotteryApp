@@ -6,6 +6,17 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function generateId(): string {
+  // 使用 crypto API 生成更安全的随机 ID
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+  // 降级方案：使用 crypto.getRandomValues
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const arr = new Uint8Array(12)
+    crypto.getRandomValues(arr)
+    return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('') + Date.now().toString(36)
+  }
+  // 最终降级
   return Math.random().toString(36).substring(2, 15) + Date.now().toString(36)
 }
 
@@ -90,53 +101,53 @@ export function downloadBase64Image(base64: string, filename: string) {
  */
 export function validateBackupData(data: unknown): { valid: boolean; errors: string[] } {
   const errors: string[] = []
-  
+
   if (!data || typeof data !== 'object') {
     errors.push('备份数据格式无效')
     return { valid: false, errors }
   }
-  
+
   const backup = data as Record<string, unknown>
-  
+
   // 检查版本号
   if (!backup.version || typeof backup.version !== 'string') {
     errors.push('缺少版本号信息')
   }
-  
+
   // 检查导出时间
   if (!backup.exportTime || typeof backup.exportTime !== 'number') {
     errors.push('缺少导出时间信息')
   }
-  
+
   // 检查数据主体
   if (!backup.data || typeof backup.data !== 'object') {
     errors.push('缺少数据主体')
     return { valid: false, errors }
   }
-  
+
   const dataBody = backup.data as Record<string, unknown>
-  
+
   // 检查必需的字段
   if (!Array.isArray(dataBody.participants)) {
     errors.push('参与者数据格式无效')
   }
-  
+
   if (!Array.isArray(dataBody.prizes)) {
     errors.push('奖项数据格式无效')
   }
-  
+
   if (!Array.isArray(dataBody.winners)) {
     errors.push('中奖记录数据格式无效')
   }
-  
+
   if (!dataBody.settings || typeof dataBody.settings !== 'object') {
     errors.push('设置数据格式无效')
   }
-  
+
   // 检查图片数据（可选）
   if (backup.images && typeof backup.images !== 'object') {
     errors.push('图片数据格式无效')
   }
-  
+
   return { valid: errors.length === 0, errors }
 }

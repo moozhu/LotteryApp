@@ -260,7 +260,22 @@ export const useLotteryStore = create<LotteryState>((set, get) => ({
     const available = state.getAvailableParticipants()
     if (available.length === 0) return []
 
-    const shuffled = [...available].sort(() => Math.random() - 0.5)
+    // 使用 crypto.getRandomValues() 实现安全的 Fisher-Yates 洗牌
+    const shuffled = [...available]
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      const randomValues = new Uint32Array(shuffled.length)
+      crypto.getRandomValues(randomValues)
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = randomValues[i] % (i + 1)
+          ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+      }
+    } else {
+      // 降级方案
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+          ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+      }
+    }
     const selected = shuffled.slice(0, Math.min(count, shuffled.length))
 
     const newWinners: Winner[] = selected.map((participant, index) => ({
@@ -375,7 +390,7 @@ export const useLotteryStore = create<LotteryState>((set, get) => ({
   importDataWithImages: async (json) => {
     try {
       const parsed = JSON.parse(json)
-      
+
       // 验证数据完整性
       const validation = validateBackupData(parsed)
       if (!validation.valid) {
@@ -395,7 +410,7 @@ export const useLotteryStore = create<LotteryState>((set, get) => ({
               const response = await fetch(base64)
               const blob = await response.blob()
               const blobUrl = URL.createObjectURL(blob)
-              
+
               // 存储图片引用
               localStorage.setItem(`prize-image:${path}`, blobUrl)
               importedImages++
@@ -419,10 +434,10 @@ export const useLotteryStore = create<LotteryState>((set, get) => ({
         return newState
       })
 
-      const message = importedImages > 0 
-        ? `数据导入成功，包含 ${importedImages} 张图片` 
+      const message = importedImages > 0
+        ? `数据导入成功，包含 ${importedImages} 张图片`
         : '数据导入成功'
-      
+
       return { success: true, message }
     } catch (e) {
       console.error('Import failed:', e)

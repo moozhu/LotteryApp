@@ -1308,7 +1308,7 @@ function BasicSettingsTab() {
             />
           </div>
           <div className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
-            <span className="text-sm font-medium text-foreground">显示打赏入口</span>
+            <span className="text-sm font-medium text-foreground">显示作者信息</span>
             <Switch
               checked={settings.showDonation}
               onChange={(checked) => updateSettings({ showDonation: checked })}
